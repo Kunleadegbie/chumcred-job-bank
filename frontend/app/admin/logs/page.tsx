@@ -107,9 +107,9 @@ export default async function AdminLogsPage() {
                 <tr key={log.id} className="hover:bg-slate-50">
                   <td className="px-5 py-4 font-semibold text-slate-900">
                     {log.source_name || "Automated Fetcher"}
-                    {log.errors_count > 0 && (
+                    {(log.errors_count || 0) > 0 && (
                       <p className="mt-1 text-xs text-amber-600">
-                        {log.errors_count} issue(s) recorded during processing
+                        {log.errors_count || 0} issue(s) recorded during processing
                       </p>
                     )}
                   </td>

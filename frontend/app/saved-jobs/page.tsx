@@ -45,8 +45,14 @@ export default function SavedJobsPage() {
         return;
       }
 
-      const savedRows = (data || []) as SavedJobRow[];
-      setJobs(savedRows.map((row) => row.jobs).filter(Boolean) as Job[]);
+      const savedRows = (data || []) as unknown as SavedJobRow[];
+
+      const savedJobs = savedRows
+        .map((row) => row.jobs)
+        .filter((job): job is Job => Boolean(job));
+
+      setJobs(savedJobs);
+
       setLoading(false);
     }
 

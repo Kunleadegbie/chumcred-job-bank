@@ -20,6 +20,9 @@ export type Job = {
   salary_currency: string | null;
   salary_display: string | null;
   description: string | null;
+  requirements: string | null;
+  responsibilities: string | null;
+  benefits: string | null;
   source_name: string | null;
   original_job_url: string;
   posted_at: string | null;
