@@ -1,0 +1,33 @@
+name: Chumcred Job Bank Cron
+
+on:
+  schedule:
+    # Fetch jobs every 3 hours
+    - cron: "0 */3 * * *"
+
+    # Archive/cleanup daily around 1:30 AM UTC
+    - cron: "30 1 * * *"
+
+  workflow_dispatch:
+
+jobs:
+  fetch-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch jobs
+        run: |
+          curl -X POST "${{ secrets.BACKEND_URL }}/tasks/fetch-jobs" \
+          -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
+
+  archive-cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Archive expired jobs
+        run: |
+          curl -X POST "${{ secrets.BACKEND_URL }}/tasks/archive-jobs" \
+          -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
+
+      - name: Cleanup old archived jobs
+        run: |
+          curl -X POST "${{ secrets.BACKEND_URL }}/tasks/cleanup-jobs" \
+          -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
