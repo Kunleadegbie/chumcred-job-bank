@@ -10,6 +10,7 @@ export default function TopNav() {
 
         <nav className="flex items-center gap-5 text-sm font-medium text-slate-700">
           <Link href="/">Home</Link>
+          <Link href="/dashboard">Dashboard</Link>
           <Link href="/jobs">Jobs</Link>
           <Link href="/jobs?work_type=remote">Remote Jobs</Link>
           <Link href="/jobs?country=Nigeria">Nigeria Jobs</Link>
