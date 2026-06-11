@@ -139,11 +139,19 @@ export default function ResumeUploadPage() {
             Accepted formats: PDF, DOC, DOCX
           </p>
 
+          <label
+            htmlFor="resume-upload"
+            className="mt-6 inline-flex cursor-pointer items-center rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+          >
+            Select Resume
+          </label>
+
           <input
+            id="resume-upload"
             type="file"
             accept=".pdf,.doc,.docx"
             onChange={handleUpload}
-            className="mt-6"
+            className="hidden"
           />
 
           {uploading && (
