@@ -111,14 +111,17 @@ def generate_job_matches(x_cron_secret: str = Header(None)):
                 skipped += 1
                 continue
 
-            supabase.table("job_matches").upsert({
-                "user_id": profile["id"],
-                "job_id": job["id"],
-                "match_score": max(score, 35),
-                "match_summary": summary,
-                "strengths": strengths,
-                "gaps": gaps,
-            }).execute()
+            supabase.table("job_matches").upsert(
+                {
+                    "user_id": profile["id"],
+                    "job_id": job["id"],
+                    "match_score": max(score, 35),
+                    "match_summary": summary,
+                    "strengths": strengths,
+                    "gaps": gaps,
+                },
+                on_conflict="user_id,job_id"
+            ).execute()
 
             inserted += 1
 
