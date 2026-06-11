@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase-browser";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 interface Props {
   mode: "login" | "signup";
@@ -24,7 +24,7 @@ export default function AuthForm({ mode }: Props) {
 
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await supabaseBrowser.auth.signUp({
           email,
           password,
         });
@@ -36,7 +36,7 @@ export default function AuthForm({ mode }: Props) {
         );
       } else {
         const { error } =
-          await supabase.auth.signInWithPassword({
+          await supabaseBrowser.auth.signInWithPassword({
             email,
             password,
           });
