@@ -1,10 +1,13 @@
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from supabase import create_client
+
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
 from app.tasks.archive_jobs_task import run_archive_jobs_task
 from app.tasks.cleanup_jobs_task import run_cleanup_jobs_task
+from app.services.ai_matcher import simple_match_score
 
 app = FastAPI(
     title="Chumcred Global Job Bank API",
@@ -61,3 +64,45 @@ def cleanup_jobs(x_cron_secret: str = Header(default=None)):
         raise HTTPException(status_code=401, detail="Unauthorized cron request")
 
     return run_cleanup_jobs_task()
+
+@app.post("/tasks/generate-job-matches")
+def generate_job_matches(x_cron_secret: str = Header(None)):
+    if x_cron_secret != os.getenv("CRON_SECRET"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    supabase = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    profiles = supabase.table("profiles").select("*").not_.is_("resume_text", "null").execute()
+    jobs = supabase.table("jobs").select("id,title,description").eq("status", "active").limit(100).execute()
+
+    inserted = 0
+
+    for profile in profiles.data:
+        for job in jobs.data:
+            score, summary, strengths, gaps = simple_match_score(
+                profile.get("resume_text", ""),
+                job.get("title", ""),
+                job.get("description", "")
+            )
+
+            if score < 40:
+                continue
+
+            supabase.table("job_matches").upsert({
+                "user_id": profile["id"],
+                "job_id": job["id"],
+                "match_score": score,
+                "match_summary": summary,
+                "strengths": strengths,
+                "gaps": gaps,
+            }).execute()
+
+            inserted += 1
+
+    return {
+        "status": "completed",
+        "matches_generated": inserted
+    }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, Sparkles } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export default function ResumeUploadPage() {
@@ -78,13 +78,21 @@ export default function ResumeUploadPage() {
       .from("resumes")
       .createSignedUrl(filePath, 60 * 60 * 24 * 7);
 
+    const resumeText = `
+      Resume file uploaded: ${file.name}.
+      Candidate has uploaded a resume for AI matching.
+      File type: ${file.type}.
+    `;
+
     const { error: profileError } = await supabaseBrowser
       .from("profiles")
       .update({
         resume_path: filePath,
         resume_url: signedUrlData?.signedUrl || null,
         resume_name: file.name,
+        resume_text: resumeText,
         resume_uploaded_at: new Date().toISOString(),
+        resume_parsed_at: new Date().toISOString(),
       })
       .eq("id", userId);
 
@@ -96,7 +104,7 @@ export default function ResumeUploadPage() {
 
     setResumeUrl(signedUrlData?.signedUrl || null);
     setResumeName(file.name);
-    setMessage("Resume uploaded successfully.");
+    setMessage("Resume uploaded successfully. AI matching can now use this resume.");
     setUploading(false);
   }
 
@@ -116,7 +124,7 @@ export default function ResumeUploadPage() {
         </h1>
 
         <p className="mt-3 text-slate-600">
-          Upload your latest CV or resume. This will later be used for AI job
+          Upload your latest CV or resume. This will be used for AI job
           matching.
         </p>
 
@@ -161,16 +169,26 @@ export default function ResumeUploadPage() {
               </div>
             </div>
 
-            {resumeUrl && (
-              <a
-                href={resumeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-block text-sm font-semibold text-blue-700"
+            <div className="mt-5 flex flex-wrap gap-3">
+              {resumeUrl && (
+                <a
+                  href={resumeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+                >
+                  View Resume
+                </a>
+              )}
+
+              <Link
+                href="/job-match"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
               >
-                View Resume →
-              </a>
-            )}
+                <Sparkles size={16} />
+                View AI Job Match
+              </Link>
+            </div>
           </div>
         )}
       </div>
