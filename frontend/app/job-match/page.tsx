@@ -21,52 +21,78 @@ type JobMatch = {
 
 export default function JobMatchPage() {
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [matches, setMatches] = useState<JobMatch[]>([]);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    async function loadMatches() {
-      const { data: userData } = await supabaseBrowser.auth.getUser();
-      const user = userData.user;
+  async function loadMatches() {
+    const { data: userData } = await supabaseBrowser.auth.getUser();
+    const user = userData.user;
 
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
-
-      const { data, error } = await supabaseBrowser
-        .from("job_matches")
-        .select(
-          `
-          id,
-          match_score,
-          match_summary,
-          strengths,
-          gaps,
-          jobs (
-            title,
-            company_name,
-            slug,
-            location_display
-          )
-        `
-        )
-        .eq("user_id", user.id)
-        .order("match_score", { ascending: false })
-        .limit(50);
-
-      if (error) {
-        setMessage(error.message);
-        setLoading(false);
-        return;
-      }
-
-      setMatches((data || []) as unknown as JobMatch[]);
-      setLoading(false);
+    if (!user) {
+      window.location.href = "/login";
+      return;
     }
 
+    const { data, error } = await supabaseBrowser
+      .from("job_matches")
+      .select(
+        `
+        id,
+        match_score,
+        match_summary,
+        strengths,
+        gaps,
+        jobs (
+          title,
+          company_name,
+          slug,
+          location_display
+        )
+      `
+      )
+      .eq("user_id", user.id)
+      .order("match_score", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      setMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setMatches((data || []) as unknown as JobMatch[]);
+    setLoading(false);
+  }
+
+  useEffect(() => {
     loadMatches();
   }, []);
+
+  async function generateMatches() {
+    setGenerating(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/generate-match", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data?.error || "Failed to generate matches.");
+        setGenerating(false);
+        return;
+      }
+
+      await loadMatches();
+    } catch {
+      setMessage("Unable to generate matches. Please try again.");
+    }
+
+    setGenerating(false);
+  }
 
   if (loading) {
     return (
@@ -90,6 +116,14 @@ export default function JobMatchPage() {
         <p className="mt-3 text-slate-600">
           Jobs ranked based on your uploaded resume.
         </p>
+
+        <button
+          onClick={generateMatches}
+          disabled={generating}
+          className="mt-5 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+        >
+          {generating ? "Generating Matches..." : "Generate AI Matches"}
+        </button>
       </div>
 
       {message && (
@@ -107,8 +141,7 @@ export default function JobMatchPage() {
           </h2>
 
           <p className="mt-2 text-slate-600">
-            Upload your resume first, then run the job matching task from the
-            backend.
+            Upload your resume first, then click “Generate AI Matches”.
           </p>
 
           <Link

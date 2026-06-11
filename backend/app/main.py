@@ -76,7 +76,7 @@ def generate_job_matches(x_cron_secret: str = Header(None)):
     )
 
     profiles = supabase.table("profiles").select("*").not_.is_("resume_text", "null").execute()
-    jobs = supabase.table("jobs").select("id,title,description").eq("status", "active").limit(100).execute()
+    jobs = supabase.table("jobs").select("id,title,description").is_("deleted_at", "null").limit(100).execute()
 
     inserted = 0
 
