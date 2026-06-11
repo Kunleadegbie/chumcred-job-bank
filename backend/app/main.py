@@ -88,7 +88,7 @@ def generate_job_matches(x_cron_secret: str = Header(None)):
                 job.get("description", "")
             )
 
-            if score < 40:
+            if score < 5:
                 continue
 
             supabase.table("job_matches").upsert({
