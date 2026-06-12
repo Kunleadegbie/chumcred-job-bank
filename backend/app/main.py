@@ -200,38 +200,49 @@ def generate_job_matches(x_cron_secret: str = Header(None)):
 
 @app.post("/tasks/career-coach")
 def career_coach(payload: dict, x_cron_secret: str = Header(default=None)):
-    verify_cron_secret(x_cron_secret)
+    try:
+        verify_cron_secret(x_cron_secret)
 
-    supabase = get_supabase()
+        supabase = get_supabase()
 
-    user_id = payload.get("user_id")
-    question = payload.get("question")
+        user_id = payload.get("user_id")
+        question = payload.get("question")
 
-    if not user_id or not question:
-        raise HTTPException(
-            status_code=400,
-            detail="user_id and question are required"
+        if not user_id or not question:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id and question are required"
+            )
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("*")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
         )
 
-    profile_response = (
-        supabase.table("profiles")
-        .select("*")
-        .eq("id", user_id)
-        .maybe_single()
-        .execute()
-    )
+        profile = profile_response.data or {}
 
-    profile = profile_response.data or {}
+        answer = generate_career_advice(question, profile)
 
-    answer = generate_career_advice(question, profile)
+        insert_response = supabase.table("career_coach_messages").insert({
+            "user_id": user_id,
+            "question": question,
+            "answer": answer,
+        }).execute()
 
-    supabase.table("career_coach_messages").insert({
-        "user_id": user_id,
-        "question": question,
-        "answer": answer,
-    }).execute()
+        return {
+            "status": "completed",
+            "answer": answer,
+            "saved": bool(insert_response.data)
+        }
 
-    return {
-        "status": "completed",
-        "answer": answer
-    }
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
