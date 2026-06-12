@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Send } from "lucide-react";
+import { Send, AlertCircle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 function slugify(text: string) {
@@ -14,6 +14,7 @@ function slugify(text: string) {
 
 export default function EmployerPostJobPage() {
   const [employerId, setEmployerId] = useState("");
+  const [hasApprovedPlan, setHasApprovedPlan] = useState(false);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [message, setMessage] = useState("");
@@ -46,18 +47,28 @@ export default function EmployerPostJobPage() {
         return;
       }
 
-      const { data } = await supabaseBrowser
+      const { data: employer } = await supabaseBrowser
         .from("employers")
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!data) {
+      if (!employer) {
         window.location.href = "/employer/profile";
         return;
       }
 
-      setEmployerId(data.id);
+      setEmployerId(employer.id);
+
+      const { data: approvedPayment } = await supabaseBrowser
+        .from("employer_payments")
+        .select("id")
+        .eq("employer_id", employer.id)
+        .eq("status", "approved")
+        .limit(1)
+        .maybeSingle();
+
+      setHasApprovedPlan(Boolean(approvedPayment));
       setLoading(false);
     }
 
@@ -70,6 +81,12 @@ export default function EmployerPostJobPage() {
 
   async function postJob(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!hasApprovedPlan) {
+      setMessage("You need an approved posting plan before you can publish a job.");
+      return;
+    }
+
     setPosting(true);
     setMessage("");
 
@@ -102,9 +119,56 @@ export default function EmployerPostJobPage() {
     );
   }
 
+  if (!hasApprovedPlan) {
+    return (
+      <main className="mx-auto max-w-5xl px-6 py-12">
+        <Link
+          href="/employer/dashboard"
+          className="text-sm font-semibold text-blue-700"
+        >
+          ← Back to Employer Dashboard
+        </Link>
+
+        <div className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
+          <div className="rounded-2xl bg-amber-50 p-4 text-amber-700">
+            <AlertCircle size={32} />
+          </div>
+
+          <h1 className="mt-5 text-3xl font-bold text-slate-900">
+            Posting Plan Required
+          </h1>
+
+          <p className="mt-3 text-slate-600">
+            You need an approved job posting plan before you can publish jobs on
+            Chumcred Job Bank.
+          </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/employer/plans"
+              className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+            >
+              Choose Posting Plan
+            </Link>
+
+            <Link
+              href="/employer/dashboard"
+              className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
-      <Link href="/employer/dashboard" className="text-sm font-semibold text-blue-700">
+      <Link
+        href="/employer/dashboard"
+        className="text-sm font-semibold text-blue-700"
+      >
         ← Back to Employer Dashboard
       </Link>
 
@@ -116,7 +180,13 @@ export default function EmployerPostJobPage() {
         <h1 className="mt-3 text-4xl font-bold">Post a Job</h1>
 
         {message && (
-          <div className="mt-6 rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+          <div
+            className={`mt-6 rounded-xl p-4 text-sm font-semibold ${
+              message.includes("successfully")
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-700"
+            }`}
+          >
             {message}
           </div>
         )}

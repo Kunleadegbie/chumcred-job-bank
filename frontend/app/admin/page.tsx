@@ -122,6 +122,16 @@ export default async function AdminDashboardPage() {
             View each automated job fetch run, duplicates, errors and status.
           </p>
         </Link>
+
+        <Link
+          href="/admin/employer-payments"
+          className="rounded-3xl border bg-white p-6 shadow-sm hover:shadow-md"
+        >
+          <h2 className="text-xl font-bold text-slate-900">Employer Payments</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Review and approve employer posting plan payments.
+          </p>
+        </Link>
       </section>
     </main>
   );
