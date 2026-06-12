@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export default function ApplyButton({
   jobId,
@@ -11,6 +12,9 @@ export default function ApplyButton({
 }) {
   async function handleApplyClick() {
     try {
+      const { data: userData } = await supabaseBrowser.auth.getUser();
+      const user = userData.user;
+
       await fetch("/api/track-apply", {
         method: "POST",
         headers: {
@@ -18,6 +22,21 @@ export default function ApplyButton({
         },
         body: JSON.stringify({ job_id: jobId }),
       });
+
+      if (user) {
+        await supabaseBrowser.from("applications").upsert(
+          {
+            user_id: user.id,
+            job_id: jobId,
+            status: "applied",
+            applied_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id,job_id",
+          }
+        );
+      }
     } catch (error) {
       console.error("Apply tracking failed:", error);
     }
