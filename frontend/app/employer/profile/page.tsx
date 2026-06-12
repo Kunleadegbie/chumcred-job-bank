@@ -158,7 +158,17 @@ export default function EmployerProfilePage() {
   );
 }
 
-function Input({ label, value, onChange, required = false }: any) {
+function Input({
+  label,
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
   return (
     <div>
       <label className="mb-2 block text-sm font-semibold">{label}</label>
@@ -172,7 +182,15 @@ function Input({ label, value, onChange, required = false }: any) {
   );
 }
 
-function Textarea({ label, value, onChange }: any) {
+function Textarea({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div>
       <label className="mb-2 block text-sm font-semibold">{label}</label>
