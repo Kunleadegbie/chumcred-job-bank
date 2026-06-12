@@ -1,211 +1,177 @@
-import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
 import JobCard from "@/components/JobCard";
-import JobFilters from "@/components/JobFilters";
-import type { Job } from "@/types/jobs";
+import { supabase } from "@/lib/supabaseClient";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 20;
+type PageProps = {
+  searchParams?: Promise<{
+    q?: string;
+    country?: string;
+    work_type?: string;
+    visa?: string;
+  }>;
+};
 
-async function getJobs(searchParams: {
-  q?: string;
-  work_type?: string;
-  country?: string;
-  visa?: string;
-  experience?: string;
-  industry?: string;
-  page?: string;
-}): Promise<{ jobs: Job[]; total: number; page: number; totalPages: number }> {
-  const currentPage = Math.max(Number(searchParams.page || "1"), 1);
-  const from = (currentPage - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
+export default async function JobsPage({ searchParams }: PageProps) {
+  const params = (await searchParams) || {};
 
-  let query = supabase
+  const q = params.q || "";
+  const country = params.country || "";
+  const workType = params.work_type || "";
+  const visa = params.visa || "";
+
+  let jobsQuery = supabase
     .from("jobs")
-    .select("*", { count: "exact" })
-    .eq("status", "active")
-    .order("fetched_at", { ascending: false })
-    .range(from, to);
+    .select("*")
+    .order("is_featured", { ascending: false })
+    .order("posted_at", { ascending: false })
+    .limit(100);
 
-  if (searchParams.q) {
-    query = query.or(
-      `title.ilike.%${searchParams.q}%,company_name.ilike.%${searchParams.q}%,description.ilike.%${searchParams.q}%`
+  if (q) {
+    jobsQuery = jobsQuery.or(
+      `title.ilike.%${q}%,company_name.ilike.%${q}%,description.ilike.%${q}%`
     );
   }
 
-  if (searchParams.work_type) {
-    query = query.eq("work_type", searchParams.work_type);
+  if (country) {
+    jobsQuery = jobsQuery.ilike("country", `%${country}%`);
   }
 
-  if (searchParams.country) {
-    const country = searchParams.country.toLowerCase();
+  if (workType) {
+    jobsQuery = jobsQuery.ilike("work_type", `%${workType}%`);
+  }
 
-    if (country === "nigeria") {
-      query = query.or(
-        "country.ilike.%Nigeria%,country.ilike.%NG%,location_display.ilike.%Nigeria%,location_display.ilike.%Lagos%,location_display.ilike.%Abuja%"
+  if (visa === "true") {
+    jobsQuery = jobsQuery.eq("visa_sponsorship", true);
+  }
+
+  const { data: normalJobs } = await jobsQuery;
+
+  let employerJobsQuery = supabase
+    .from("employer_jobs")
+    .select(
+      `
+      *,
+      employers (
+        company_name
+      )
+    `
+    )
+    .eq("status", "published")
+    .order("is_featured", { ascending: false })
+    .order("posted_at", { ascending: false })
+    .limit(100);
+
+  if (country) {
+    employerJobsQuery = employerJobsQuery.ilike("country", `%${country}%`);
+  }
+
+  if (workType) {
+    employerJobsQuery = employerJobsQuery.ilike("work_type", `%${workType}%`);
+  }
+
+  const { data: employerJobsData } = await employerJobsQuery;
+
+  const employerJobs = (employerJobsData || []).map((job: any) => ({
+    id: job.id,
+    title: job.title,
+    slug: job.slug,
+    company_name: job.employers?.company_name || "Employer",
+    location_display:
+      job.location_display || job.city || job.country || "Location not stated",
+    country: job.country || "",
+    city: job.city || "",
+    description: job.description || "",
+    requirements: job.requirements || "",
+    responsibilities: job.responsibilities || "",
+    benefits: job.benefits || "",
+    work_type: job.work_type || "",
+    employment_type: job.employment_type || "",
+    experience_level: job.experience_level || "",
+    salary_display: job.salary_display || "",
+    salary_currency: job.salary_currency || "",
+    original_job_url: job.original_job_url || "",
+    source: "Employer",
+    is_featured: job.is_featured || false,
+    visa_sponsorship: false,
+    posted_at: job.posted_at || job.created_at,
+    created_at: job.created_at,
+  }));
+
+  const combinedJobs = [...employerJobs, ...(normalJobs || [])]
+    .filter((job: any) => {
+      if (!q) return true;
+
+      const searchText = `${job.title || ""} ${job.company_name || ""} ${
+        job.description || ""
+      }`.toLowerCase();
+
+      return searchText.includes(q.toLowerCase());
+    })
+    .sort((a: any, b: any) => {
+      if (a.is_featured && !b.is_featured) return -1;
+      if (!a.is_featured && b.is_featured) return 1;
+
+      return (
+        new Date(b.posted_at || b.created_at || 0).getTime() -
+        new Date(a.posted_at || a.created_at || 0).getTime()
       );
-    } else {
-      query = query.or(
-        `country.ilike.%${searchParams.country}%,location_display.ilike.%${searchParams.country}%`
-      );
-    }
-  }
+    })
+    .slice(0, 100);
 
-  if (searchParams.visa === "true") {
-    query = query.eq("is_visa_sponsorship", true);
-  }
-
-  if (searchParams.experience) {
-    query = query.eq("experience_level", searchParams.experience);
-  }
-
-  if (searchParams.industry) {
-    query = query.ilike("industry", `%${searchParams.industry}%`);
-  }
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    console.error(error);
-    return { jobs: [], total: 0, page: currentPage, totalPages: 1 };
-  }
-
-  const total = count || 0;
-  const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
-
-  return {
-    jobs: data || [],
-    total,
-    page: currentPage,
-    totalPages,
-  };
-}
-
-function getPageTitle(searchParams: {
-  q?: string;
-  work_type?: string;
-  country?: string;
-  visa?: string;
-}) {
-  if (searchParams.q) return `Search Results for "${searchParams.q}"`;
-  if (searchParams.visa === "true") return "Visa Sponsorship Jobs";
-  if (searchParams.country) return `${searchParams.country} Jobs`;
-  if (searchParams.work_type === "remote") return "Remote Jobs";
-  if (searchParams.work_type === "hybrid") return "Hybrid Jobs";
-  if (searchParams.work_type === "onsite") return "Onsite Jobs";
-  if (searchParams.work_type === "wfa") return "Work From Anywhere Jobs";
-  return "Browse Available Jobs";
-}
-
-function buildPageUrl(
-  params: {
-    q?: string;
-    work_type?: string;
-    country?: string;
-    visa?: string;
-    experience?: string;
-    industry?: string;
-  },
-  page: number
-) {
-  const urlParams = new URLSearchParams();
-
-  if (params.q) urlParams.set("q", params.q);
-  if (params.work_type) urlParams.set("work_type", params.work_type);
-  if (params.country) urlParams.set("country", params.country);
-  if (params.visa) urlParams.set("visa", params.visa);
-  if (params.experience) urlParams.set("experience", params.experience);
-  if (params.industry) urlParams.set("industry", params.industry);
-
-  urlParams.set("page", String(page));
-
-  return `/jobs?${urlParams.toString()}`;
-}
-
-export default async function JobsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    q?: string;
-    work_type?: string;
-    country?: string;
-    visa?: string;
-    experience?: string;
-    industry?: string;
-    page?: string;
-  }>;
-}) {
-  const params = await searchParams;
-  const { jobs, total, page, totalPages } = await getJobs(params);
-  const title = getPageTitle(params);
-
-  const fromRecord = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const toRecord = Math.min(page * PAGE_SIZE, total);
+  const pageTitle = country
+    ? `${country} Jobs`
+    : workType === "remote"
+    ? "Remote Jobs"
+    : visa === "true"
+    ? "Visa Sponsorship Jobs"
+    : "Browse Available Jobs";
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-12">
-      <div className="mb-8">
+      <div className="mb-10">
         <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
           Chumcred Jobs
         </p>
 
-        <h1 className="mt-3 text-4xl font-bold text-slate-900">{title}</h1>
+        <h1 className="mt-3 text-5xl font-bold text-slate-900">
+          {pageTitle}
+        </h1>
 
-        <p className="mt-3 text-slate-600">
-          Showing {fromRecord}–{toRecord} of {total} matching job opportunities.
+        <p className="mt-4 text-slate-600">
+          Showing {combinedJobs.length} matching job opportunities.
         </p>
+
+        <form method="GET" className="mt-8 flex flex-col gap-3 md:flex-row">
+          <input
+            type="text"
+            name="q"
+            placeholder="Search jobs, companies, skills..."
+            defaultValue={q}
+            className="flex-1 rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
+          />
+
+          <button
+            type="submit"
+            className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+          >
+            Search
+          </button>
+        </form>
       </div>
 
-      <JobFilters />
-
-      {jobs.length === 0 ? (
-        <div className="rounded-2xl border bg-white p-8 text-slate-600">
-          No jobs found for this category yet. Try another category or clear
-          filters.
+      {combinedJobs.length === 0 ? (
+        <div className="rounded-3xl border bg-white p-8 shadow-sm">
+          <p className="text-slate-600">
+            No jobs found for this category yet. Try another category.
+          </p>
         </div>
       ) : (
-        <>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </div>
-
-          <div className="mt-10 flex flex-col items-center justify-between gap-4 rounded-2xl border bg-white p-5 sm:flex-row">
-            <p className="text-sm text-slate-600">
-              Page {page} of {totalPages}
-            </p>
-
-            <div className="flex items-center gap-3">
-              {page > 1 ? (
-                <Link
-                  href={buildPageUrl(params, page - 1)}
-                  className="rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  ← Previous
-                </Link>
-              ) : (
-                <span className="rounded-xl border px-4 py-2 text-sm font-semibold text-slate-300">
-                  ← Previous
-                </span>
-              )}
-
-              {page < totalPages ? (
-                <Link
-                  href={buildPageUrl(params, page + 1)}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                >
-                  Next →
-                </Link>
-              ) : (
-                <span className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400">
-                  Next →
-                </span>
-              )}
-            </div>
-          </div>
-        </>
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {combinedJobs.map((job: any) => (
+            <JobCard key={`${job.source || "job"}-${job.id}`} job={job} />
+          ))}
+        </div>
       )}
     </main>
   );
