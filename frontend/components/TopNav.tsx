@@ -44,6 +44,7 @@ export default function TopNav() {
         <nav className="flex items-center gap-5 text-sm font-medium text-slate-700">
           <Link href="/">Home</Link>
           <Link href="/jobs">Jobs</Link>
+          <Link href="/employer">Employers</Link>
           <Link href="/jobs?work_type=remote">Remote Jobs</Link>
           <Link href="/jobs?country=Nigeria">Nigeria Jobs</Link>
           <Link href="/jobs?visa=true">Visa Sponsorship</Link>
@@ -55,6 +56,7 @@ export default function TopNav() {
               <Link href="/my-applications">My Applications</Link>
               <Link href="/job-match">AI Job Match</Link>
               <Link href="/profile">Profile</Link>
+              <Link href="/employer/dashboard">Employer Dashboard</Link>
               <button
                 onClick={handleLogout}
                 className="rounded-xl border px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
