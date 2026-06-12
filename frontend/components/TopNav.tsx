@@ -53,6 +53,7 @@ export default function TopNav() {
               <Link href="/dashboard">Dashboard</Link>
               <Link href="/saved-jobs">Saved Jobs</Link>
               <Link href="/job-match">AI Job Match</Link>
+              <Link href="/profile">Profile</Link>
               <button
                 onClick={handleLogout}
                 className="rounded-xl border px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
