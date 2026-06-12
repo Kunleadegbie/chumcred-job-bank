@@ -197,6 +197,13 @@ export default function DashboardPage() {
           </Link>
 
           <Link
+            href="/my-applications"
+            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            My Applications
+          </Link>
+
+          <Link
             href="/profile/resume"
             className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
           >

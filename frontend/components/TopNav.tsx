@@ -52,6 +52,7 @@ export default function TopNav() {
             <>
               <Link href="/dashboard">Dashboard</Link>
               <Link href="/saved-jobs">Saved Jobs</Link>
+              <Link href="/my-applications">My Applications</Link>
               <Link href="/job-match">AI Job Match</Link>
               <Link href="/profile">Profile</Link>
               <button
