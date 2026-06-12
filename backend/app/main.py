@@ -1,12 +1,14 @@
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from datetime import datetime, timezone
 from supabase import create_client
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
 from app.tasks.archive_jobs_task import run_archive_jobs_task
 from app.tasks.cleanup_jobs_task import run_cleanup_jobs_task
 from app.services.ai_matcher import simple_match_score
+from app.services.resume_extractor import extract_resume_text
 
 app = FastAPI(
     title="Chumcred Global Job Bank API",
@@ -20,6 +22,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_supabase():
+    return create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+
+def verify_cron_secret(x_cron_secret: str | None):
+    cron_secret = os.getenv("CRON_SECRET")
+
+    if cron_secret and x_cron_secret != cron_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized cron request")
 
 
 @app.get("/")
@@ -37,42 +53,91 @@ def health():
 
 @app.post("/tasks/fetch-jobs")
 def fetch_jobs(x_cron_secret: str = Header(default=None)):
-    cron_secret = os.getenv("CRON_SECRET")
-
-    if cron_secret and x_cron_secret != cron_secret:
-        raise HTTPException(status_code=401, detail="Unauthorized cron request")
-
+    verify_cron_secret(x_cron_secret)
     return run_job_fetch_task()
 
 
 @app.post("/tasks/archive-jobs")
 def archive_jobs(x_cron_secret: str = Header(default=None)):
-    cron_secret = os.getenv("CRON_SECRET")
-
-    if cron_secret and x_cron_secret != cron_secret:
-        raise HTTPException(status_code=401, detail="Unauthorized cron request")
-
+    verify_cron_secret(x_cron_secret)
     return run_archive_jobs_task()
 
 
 @app.post("/tasks/cleanup-jobs")
 def cleanup_jobs(x_cron_secret: str = Header(default=None)):
-    cron_secret = os.getenv("CRON_SECRET")
-
-    if cron_secret and x_cron_secret != cron_secret:
-        raise HTTPException(status_code=401, detail="Unauthorized cron request")
-
+    verify_cron_secret(x_cron_secret)
     return run_cleanup_jobs_task()
+
+
+@app.post("/tasks/extract-resume-text")
+def extract_resume_text_task(x_cron_secret: str = Header(default=None)):
+    verify_cron_secret(x_cron_secret)
+
+    supabase = get_supabase()
+
+    profiles = (
+        supabase.table("profiles")
+        .select("id,resume_path,resume_name")
+        .not_.is_("resume_path", "null")
+        .execute()
+    )
+
+    processed = 0
+    failed = 0
+    errors = []
+
+    for profile in profiles.data or []:
+        user_id = profile.get("id")
+        resume_path = profile.get("resume_path")
+        resume_name = profile.get("resume_name") or resume_path or ""
+
+        if not resume_path:
+            continue
+
+        try:
+            file_response = (
+                supabase.storage
+                .from_("resumes")
+                .download(resume_path)
+            )
+
+            if not file_response:
+                failed += 1
+                errors.append(f"No file returned for profile {user_id}")
+                continue
+
+            extracted_text = extract_resume_text(file_response, resume_name)
+
+            if not extracted_text:
+                failed += 1
+                errors.append(f"No text extracted for profile {user_id}")
+                continue
+
+            supabase.table("profiles").update({
+                "resume_text": extracted_text,
+                "resume_parsed_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", user_id).execute()
+
+            processed += 1
+
+        except Exception as e:
+            failed += 1
+            errors.append(str(e))
+
+    return {
+        "status": "completed",
+        "profiles_found": len(profiles.data or []),
+        "processed": processed,
+        "failed": failed,
+        "errors": errors[:5]
+    }
+
 
 @app.post("/tasks/generate-job-matches")
 def generate_job_matches(x_cron_secret: str = Header(None)):
-    if x_cron_secret != os.getenv("CRON_SECRET"):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    verify_cron_secret(x_cron_secret)
 
-    supabase = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
+    supabase = get_supabase()
 
     profiles = (
         supabase.table("profiles")
@@ -106,7 +171,6 @@ def generate_job_matches(x_cron_secret: str = Header(None)):
                 job.get("description", "")
             )
 
-            # Temporary lower threshold until we add real CV text extraction
             if score < 1:
                 skipped += 1
                 continue
