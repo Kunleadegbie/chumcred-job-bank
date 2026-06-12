@@ -6,6 +6,62 @@ import HomeSearch from "@/components/HomeSearch";
 
 export const dynamic = "force-dynamic";
 
+async function getFeaturedJobs(): Promise<Job[]> {
+  const { data: normalJobs } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("status", "active")
+    .eq("is_featured", true)
+    .order("posted_at", { ascending: false })
+    .limit(6);
+
+  const { data: employerJobsData } = await supabase
+    .from("employer_jobs")
+    .select(
+      `
+      *,
+      employers (
+        company_name
+      )
+    `
+    )
+    .eq("status", "published")
+    .eq("is_featured", true)
+    .order("posted_at", { ascending: false })
+    .limit(6);
+
+  const employerJobs = (employerJobsData || []).map((job: any) => ({
+    id: job.id,
+    title: job.title,
+    slug: job.slug,
+    company_name: job.employers?.company_name || "Employer",
+    location_display:
+      job.location_display || job.city || job.country || "Location not stated",
+    country: job.country || "",
+    city: job.city || "",
+    description: job.description || "",
+    work_type: job.work_type || "",
+    employment_type: job.employment_type || "",
+    experience_level: job.experience_level || "",
+    salary_display: job.salary_display || "",
+    original_job_url: job.original_job_url || "",
+    source: "Employer",
+    is_featured: true,
+    visa_sponsorship: false,
+    posted_at: job.posted_at || job.created_at,
+    created_at: job.created_at,
+  }));
+
+  return [...employerJobs, ...(normalJobs || [])]
+    .sort((a: any, b: any) => {
+      return (
+        new Date(b.posted_at || b.created_at || 0).getTime() -
+        new Date(a.posted_at || a.created_at || 0).getTime()
+      );
+    })
+    .slice(0, 6) as Job[];
+}
+
 async function getLatestJobs(): Promise<Job[]> {
   const { data, error } = await supabase
     .from("jobs")
@@ -23,6 +79,7 @@ async function getLatestJobs(): Promise<Job[]> {
 }
 
 export default async function HomePage() {
+  const featuredJobs = await getFeaturedJobs();
   const jobs = await getLatestJobs();
 
   return (
@@ -38,7 +95,8 @@ export default async function HomePage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg text-slate-300">
-            Search Nigerian, remote, hybrid, onsite and work-from-anywhere opportunities from trusted job sources.
+            Search Nigerian, remote, hybrid, onsite and work-from-anywhere
+            opportunities from trusted job sources.
           </p>
 
           <HomeSearch />
@@ -60,6 +118,39 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {featuredJobs.length > 0 && (
+        <section className="mx-auto max-w-7xl px-6 py-14">
+          <div className="mb-8 flex items-end justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+                Featured Opportunities
+              </p>
+
+              <h2 className="mt-2 text-2xl font-bold text-slate-900">
+                Featured Jobs
+              </h2>
+
+              <p className="mt-2 text-slate-600">
+                Premium jobs highlighted by employers and Chumcred Job Bank.
+              </p>
+            </div>
+
+            <Link
+              href="/jobs"
+              className="text-sm font-semibold text-blue-700"
+            >
+              View all jobs →
+            </Link>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {featuredJobs.map((job) => (
+              <JobCard key={`featured-${job.id}`} job={job} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mx-auto max-w-7xl px-6 py-14">
         <div className="mb-8 flex items-end justify-between">
