@@ -12,9 +12,19 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+type ApprovedPlan = {
+  id: string;
+  employer_posting_plans: {
+    is_featured: boolean | null;
+    code: string | null;
+    name: string | null;
+  } | null;
+};
+
 export default function EmployerPostJobPage() {
   const [employerId, setEmployerId] = useState("");
   const [hasApprovedPlan, setHasApprovedPlan] = useState(false);
+  const [approvedPlan, setApprovedPlan] = useState<ApprovedPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [message, setMessage] = useState("");
@@ -60,15 +70,26 @@ export default function EmployerPostJobPage() {
 
       setEmployerId(employer.id);
 
-      const { data: approvedPayment } = await supabaseBrowser
+      const { data: payment } = await supabaseBrowser
         .from("employer_payments")
-        .select("id")
+        .select(
+          `
+          id,
+          employer_posting_plans (
+            is_featured,
+            code,
+            name
+          )
+        `
+        )
         .eq("employer_id", employer.id)
         .eq("status", "approved")
+        .order("approved_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      setHasApprovedPlan(Boolean(approvedPayment));
+      setApprovedPlan((payment || null) as unknown as ApprovedPlan | null);
+      setHasApprovedPlan(Boolean(payment));
       setLoading(false);
     }
 
@@ -91,12 +112,14 @@ export default function EmployerPostJobPage() {
     setMessage("");
 
     const slug = `${slugify(form.title)}-${Date.now()}`;
+    const isFeatured = Boolean(approvedPlan?.employer_posting_plans?.is_featured);
 
     const { error } = await supabaseBrowser.from("employer_jobs").insert({
       employer_id: employerId,
       ...form,
       slug,
       status: "published",
+      is_featured: isFeatured,
       posted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -107,7 +130,11 @@ export default function EmployerPostJobPage() {
       return;
     }
 
-    setMessage("Job posted successfully.");
+    setMessage(
+      isFeatured
+        ? "Featured job posted successfully."
+        : "Job posted successfully."
+    );
     setPosting(false);
   }
 
@@ -163,6 +190,13 @@ export default function EmployerPostJobPage() {
     );
   }
 
+  const activePlanName =
+    approvedPlan?.employer_posting_plans?.name || "Approved Posting Plan";
+
+  const isFeaturedPlan = Boolean(
+    approvedPlan?.employer_posting_plans?.is_featured
+  );
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       <Link
@@ -178,6 +212,11 @@ export default function EmployerPostJobPage() {
         </p>
 
         <h1 className="mt-3 text-4xl font-bold">Post a Job</h1>
+
+        <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">
+          Active plan: <strong>{activePlanName}</strong>
+          {isFeaturedPlan ? " — jobs posted under this plan will be featured." : " — jobs posted under this plan will be standard listings."}
+        </div>
 
         {message && (
           <div
