@@ -114,6 +114,10 @@ export default function EmployerDashboardPage() {
           <Link href="/employer/jobs" className="rounded-xl border px-5 py-3 font-semibold hover:bg-slate-50">
             Manage Jobs
           </Link>
+
+          <Link href="/employer/plans" className="rounded-xl border px-5 py-3 font-semibold hover:bg-slate-50">
+            Posting Plans
+          </Link>
         </div>
       </section>
     </main>
