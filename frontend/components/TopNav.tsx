@@ -56,6 +56,7 @@ export default function TopNav() {
               <Link href="/my-applications">My Applications</Link>
               <Link href="/job-match">AI Job Match</Link>
               <Link href="/ai-career-coach">AI Career Coach</Link>
+              <Link href="/ai-cv-review">AI CV Review</Link>
               <Link href="/profile">Profile</Link>
               <Link href="/employer/dashboard">Employer Dashboard</Link>
               <button

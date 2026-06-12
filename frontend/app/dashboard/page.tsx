@@ -214,6 +214,11 @@ export default function DashboardPage() {
             className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
             AI Career Coach
           </Link>
+          <Link
+            href="/ai-cv-review"
+            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
+            AI CV Review
+          </Link>
         </div>
       </section>
     </main>
