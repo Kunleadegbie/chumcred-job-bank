@@ -10,6 +10,7 @@ from app.tasks.archive_jobs_task import run_archive_jobs_task
 from app.tasks.cleanup_jobs_task import run_cleanup_jobs_task
 from app.services.ai_matcher import simple_match_score
 from app.services.resume_extractor import extract_resume_text
+from app.services.cv_reviewer import review_cv
 
 app = FastAPI(
     title="Chumcred Global Job Bank API",
@@ -235,6 +236,63 @@ def career_coach(payload: dict, x_cron_secret: str = Header(default=None)):
         return {
             "status": "completed",
             "answer": answer,
+            "saved": bool(insert_response.data)
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.post("/tasks/cv-review")
+def cv_review(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        supabase = get_supabase()
+
+        user_id = payload.get("user_id")
+
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id is required"
+            )
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("id,resume_text")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile = profile_response.data or {}
+        resume_text = profile.get("resume_text") or ""
+
+        if not resume_text.strip():
+            return {
+                "status": "error",
+                "message": "No resume text found. Please upload and extract resume first."
+            }
+
+        result = review_cv(resume_text)
+
+        insert_response = supabase.table("cv_reviews").insert({
+            "user_id": user_id,
+            "score": result["score"],
+            "strengths": result["strengths"],
+            "weaknesses": result["weaknesses"],
+            "recommendations": result["recommendations"],
+        }).execute()
+
+        return {
+            "status": "completed",
+            "review": result,
             "saved": bool(insert_response.data)
         }
 
