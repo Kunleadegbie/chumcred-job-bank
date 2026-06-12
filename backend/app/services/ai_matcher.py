@@ -1,14 +1,14 @@
 import re
 from collections import Counter
 
-
 STOP_WORDS = {
     "the", "and", "or", "a", "an", "to", "of", "in", "for", "with", "on",
     "by", "as", "at", "from", "is", "are", "be", "this", "that", "will",
     "you", "your", "we", "our", "their", "they", "it", "job", "role",
-    "candidate", "company", "team", "work", "working", "experience"
+    "candidate", "company", "team", "work", "working", "experience",
+    "required", "responsibilities", "requirements", "about", "across",
+    "including", "using", "ability", "skills"
 }
-
 
 IMPORTANT_SKILLS = {
     "business analyst", "data analyst", "project management", "product management",
@@ -18,7 +18,10 @@ IMPORTANT_SKILLS = {
     "strategy", "operations", "stakeholder management", "reporting",
     "dashboard", "analytics", "machine learning", "artificial intelligence",
     "software engineering", "frontend", "backend", "react", "next.js",
-    "fastapi", "supabase", "leadership", "communication", "problem solving"
+    "fastapi", "supabase", "leadership", "communication", "problem solving",
+    "platform integration", "api", "crm", "negotiation", "presentation",
+    "relationship management", "compliance", "audit", "procurement",
+    "logistics", "administration", "human resources", "hr"
 }
 
 
@@ -30,23 +33,16 @@ def normalize_text(text: str) -> str:
 
 
 def tokenize(text: str):
-    text = normalize_text(text)
-    words = text.split()
-    return [word for word in words if word not in STOP_WORDS and len(word) > 2]
+    words = normalize_text(text).split()
+    return [word for word in words if word not in STOP_WORDS and len(word) > 3]
 
 
 def extract_skill_phrases(text: str):
     normalized = normalize_text(text)
-    found = []
-
-    for skill in IMPORTANT_SKILLS:
-        if skill in normalized:
-            found.append(skill)
-
-    return found
+    return [skill for skill in IMPORTANT_SKILLS if skill in normalized]
 
 
-def keyword_overlap_score(resume_text: str, job_text: str) -> tuple[int, list[str]]:
+def keyword_overlap_score(resume_text: str, job_text: str):
     resume_words = set(tokenize(resume_text))
     job_words = set(tokenize(job_text))
 
@@ -59,12 +55,12 @@ def keyword_overlap_score(resume_text: str, job_text: str) -> tuple[int, list[st
     return min(score, 100), sorted(list(common))[:20]
 
 
-def skill_score(resume_text: str, job_text: str) -> tuple[int, list[str]]:
+def skill_score(resume_text: str, job_text: str):
     resume_skills = set(extract_skill_phrases(resume_text))
     job_skills = set(extract_skill_phrases(job_text))
 
     if not job_skills:
-        return 10, []
+        return 20, []
 
     matched = resume_skills.intersection(job_skills)
     score = round((len(matched) / max(len(job_skills), 1)) * 100)
@@ -74,18 +70,12 @@ def skill_score(resume_text: str, job_text: str) -> tuple[int, list[str]]:
 
 def title_relevance_score(resume_text: str, job_title: str) -> int:
     resume = normalize_text(resume_text)
-    title = normalize_text(job_title)
-
-    if not title:
-        return 0
-
-    title_words = [word for word in title.split() if word not in STOP_WORDS]
+    title_words = tokenize(job_title)
 
     if not title_words:
         return 0
 
     matched = [word for word in title_words if word in resume]
-
     return min(round((len(matched) / len(title_words)) * 100), 100)
 
 
@@ -96,20 +86,11 @@ def seniority_score(resume_text: str, job_text: str) -> int:
     senior_terms = ["senior", "lead", "manager", "head", "director", "principal"]
     entry_terms = ["graduate", "trainee", "entry", "junior", "intern"]
 
-    resume_has_senior = any(term in resume for term in senior_terms)
-    job_has_senior = any(term in job for term in senior_terms)
+    if any(term in job for term in senior_terms):
+        return 90 if any(term in resume for term in senior_terms) else 45
 
-    resume_has_entry = any(term in resume for term in entry_terms)
-    job_has_entry = any(term in job for term in entry_terms)
-
-    if job_has_senior and resume_has_senior:
+    if any(term in job for term in entry_terms):
         return 90
-
-    if job_has_entry and resume_has_entry:
-        return 90
-
-    if job_has_senior and not resume_has_senior:
-        return 45
 
     return 65
 
@@ -126,27 +107,32 @@ def generate_summary(score: int) -> str:
     return "Low match. The resume does not strongly align with this job yet."
 
 
-def generate_gaps(matched_skills: list[str], job_text: str) -> str:
+def generate_gaps(resume_text: str, matched_skills: list[str], job_text: str) -> str:
+    resume_words = set(tokenize(resume_text))
+    job_words = tokenize(job_text)
+
     job_skills = set(extract_skill_phrases(job_text))
-    missing = sorted(list(job_skills.difference(set(matched_skills))))
+    missing_skills = sorted(list(job_skills.difference(set(matched_skills))))
 
-    if missing:
-        return ", ".join(missing[:10])
+    if missing_skills:
+        return "Strengthen these role-specific skills: " + ", ".join(missing_skills[:8])
 
-    job_keywords = tokenize(job_text)
-    keyword_counts = Counter(job_keywords)
+    keyword_counts = Counter(job_words)
 
-    important_missing = [
-        word for word, _count in keyword_counts.most_common(20)
-        if word not in matched_skills
+    missing_keywords = [
+        word for word, _count in keyword_counts.most_common(30)
+        if word not in resume_words
         and word not in STOP_WORDS
         and len(word) > 3
     ]
 
-    if important_missing:
-        return "Consider strengthening resume keywords around: " + ", ".join(important_missing[:8])
+    if missing_keywords:
+        return "Add stronger evidence around: " + ", ".join(missing_keywords[:8])
 
-    return "Job description has limited skill details, so gaps could not be clearly identified."
+    if matched_skills:
+        return "Improve the resume by adding measurable achievements linked to: " + ", ".join(matched_skills[:5])
+
+    return "Add more job-specific keywords, measurable achievements, and tools relevant to this role."
 
 
 def simple_match_score(resume_text: str, job_title: str, job_description: str):
@@ -166,15 +152,15 @@ def simple_match_score(resume_text: str, job_title: str, job_description: str):
 
     final_score = max(min(final_score, 100), 1)
 
-    summary = generate_summary(final_score)
-
     strengths_list = matched_skills or common_keywords
+
     strengths = (
         ", ".join(strengths_list[:15])
         if strengths_list
         else "Some general experience appears relevant, but clear skill overlap is limited."
     )
 
-    gaps = generate_gaps(matched_skills, job_text)
+    summary = generate_summary(final_score)
+    gaps = generate_gaps(resume_text, matched_skills, job_text)
 
     return final_score, summary, strengths, gaps
