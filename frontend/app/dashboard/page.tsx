@@ -209,6 +209,11 @@ export default function DashboardPage() {
           >
             Upload Resume
           </Link>
+          <Link
+            href="/ai-career-coach"
+            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
+            AI Career Coach
+          </Link>
         </div>
       </section>
     </main>
