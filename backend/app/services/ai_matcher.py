@@ -133,7 +133,20 @@ def generate_gaps(matched_skills: list[str], job_text: str) -> str:
     if missing:
         return ", ".join(missing[:10])
 
-    return "No major skill gaps detected from available job description."
+    job_keywords = tokenize(job_text)
+    keyword_counts = Counter(job_keywords)
+
+    important_missing = [
+        word for word, _count in keyword_counts.most_common(20)
+        if word not in matched_skills
+        and word not in STOP_WORDS
+        and len(word) > 3
+    ]
+
+    if important_missing:
+        return "Consider strengthening resume keywords around: " + ", ".join(important_missing[:8])
+
+    return "Job description has limited skill details, so gaps could not be clearly identified."
 
 
 def simple_match_score(resume_text: str, job_title: str, job_description: str):
