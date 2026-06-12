@@ -68,7 +68,7 @@ export default function EmployerPostJobPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function postJob(e: React.FormEvent) {
+  async function postJob(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPosting(true);
     setMessage("");
@@ -122,24 +122,97 @@ export default function EmployerPostJobPage() {
         )}
 
         <form onSubmit={postJob} className="mt-8 space-y-6">
-          <Input label="Job Title" value={form.title} onChange={(v) => updateField("title", v)} required />
+          <Input
+            label="Job Title"
+            value={form.title}
+            onChange={(v) => updateField("title", v)}
+            required
+          />
 
-          <Textarea label="Job Description" value={form.description} onChange={(v) => updateField("description", v)} />
-          <Textarea label="Requirements" value={form.requirements} onChange={(v) => updateField("requirements", v)} />
-          <Textarea label="Responsibilities" value={form.responsibilities} onChange={(v) => updateField("responsibilities", v)} />
-          <Textarea label="Benefits" value={form.benefits} onChange={(v) => updateField("benefits", v)} />
+          <Textarea
+            label="Job Description"
+            value={form.description}
+            onChange={(v) => updateField("description", v)}
+          />
+
+          <Textarea
+            label="Requirements"
+            value={form.requirements}
+            onChange={(v) => updateField("requirements", v)}
+          />
+
+          <Textarea
+            label="Responsibilities"
+            value={form.responsibilities}
+            onChange={(v) => updateField("responsibilities", v)}
+          />
+
+          <Textarea
+            label="Benefits"
+            value={form.benefits}
+            onChange={(v) => updateField("benefits", v)}
+          />
 
           <div className="grid gap-5 md:grid-cols-2">
-            <Input label="Industry" value={form.industry} onChange={(v) => updateField("industry", v)} />
-            <Input label="Job Function" value={form.job_function} onChange={(v) => updateField("job_function", v)} />
-            <Input label="Experience Level" value={form.experience_level} onChange={(v) => updateField("experience_level", v)} />
-            <Input label="Country" value={form.country} onChange={(v) => updateField("country", v)} />
-            <Input label="City" value={form.city} onChange={(v) => updateField("city", v)} />
-            <Input label="Location Display" value={form.location_display} onChange={(v) => updateField("location_display", v)} />
-            <Input label="Work Type" value={form.work_type} onChange={(v) => updateField("work_type", v)} />
-            <Input label="Employment Type" value={form.employment_type} onChange={(v) => updateField("employment_type", v)} />
-            <Input label="Salary Currency" value={form.salary_currency} onChange={(v) => updateField("salary_currency", v)} />
-            <Input label="Salary Display" value={form.salary_display} onChange={(v) => updateField("salary_display", v)} />
+            <Input
+              label="Industry"
+              value={form.industry}
+              onChange={(v) => updateField("industry", v)}
+            />
+
+            <Input
+              label="Job Function"
+              value={form.job_function}
+              onChange={(v) => updateField("job_function", v)}
+            />
+
+            <Input
+              label="Experience Level"
+              value={form.experience_level}
+              onChange={(v) => updateField("experience_level", v)}
+            />
+
+            <Input
+              label="Country"
+              value={form.country}
+              onChange={(v) => updateField("country", v)}
+            />
+
+            <Input
+              label="City"
+              value={form.city}
+              onChange={(v) => updateField("city", v)}
+            />
+
+            <Input
+              label="Location Display"
+              value={form.location_display}
+              onChange={(v) => updateField("location_display", v)}
+            />
+
+            <Input
+              label="Work Type"
+              value={form.work_type}
+              onChange={(v) => updateField("work_type", v)}
+            />
+
+            <Input
+              label="Employment Type"
+              value={form.employment_type}
+              onChange={(v) => updateField("employment_type", v)}
+            />
+
+            <Input
+              label="Salary Currency"
+              value={form.salary_currency}
+              onChange={(v) => updateField("salary_currency", v)}
+            />
+
+            <Input
+              label="Salary Display"
+              value={form.salary_display}
+              onChange={(v) => updateField("salary_display", v)}
+            />
           </div>
 
           <button
@@ -156,7 +229,17 @@ export default function EmployerPostJobPage() {
   );
 }
 
-function Input({ label, value, onChange, required = false }: any) {
+function Input({
+  label,
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
   return (
     <div>
       <label className="mb-2 block text-sm font-semibold">{label}</label>
@@ -170,7 +253,15 @@ function Input({ label, value, onChange, required = false }: any) {
   );
 }
 
-function Textarea({ label, value, onChange }: any) {
+function Textarea({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div>
       <label className="mb-2 block text-sm font-semibold">{label}</label>
