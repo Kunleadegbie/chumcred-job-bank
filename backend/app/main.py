@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from datetime import datetime, timezone
 from supabase import create_client
+from app.services.career_coach import generate_career_advice
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
 from app.tasks.archive_jobs_task import run_archive_jobs_task
@@ -195,4 +196,42 @@ def generate_job_matches(x_cron_secret: str = Header(None)):
         "jobs_checked": len(jobs.data or []),
         "matches_generated": inserted,
         "matches_skipped": skipped
+    }
+
+@app.post("/tasks/career-coach")
+def career_coach(payload: dict, x_cron_secret: str = Header(default=None)):
+    verify_cron_secret(x_cron_secret)
+
+    supabase = get_supabase()
+
+    user_id = payload.get("user_id")
+    question = payload.get("question")
+
+    if not user_id or not question:
+        raise HTTPException(
+            status_code=400,
+            detail="user_id and question are required"
+        )
+
+    profile_response = (
+        supabase.table("profiles")
+        .select("*")
+        .eq("id", user_id)
+        .maybe_single()
+        .execute()
+    )
+
+    profile = profile_response.data or {}
+
+    answer = generate_career_advice(question, profile)
+
+    supabase.table("career_coach_messages").insert({
+        "user_id": user_id,
+        "question": question,
+        "answer": answer,
+    }).execute()
+
+    return {
+        "status": "completed",
+        "answer": answer
     }
