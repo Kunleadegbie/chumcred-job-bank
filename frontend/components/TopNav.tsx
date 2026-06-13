@@ -3,23 +3,62 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export default function TopNav() {
   const router = useRouter();
+
   const [loggedIn, setLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     async function checkUser() {
       const { data } = await supabaseBrowser.auth.getUser();
-      setLoggedIn(Boolean(data.user));
+      const user = data.user;
+
+      setLoggedIn(Boolean(user));
+
+      if (user) {
+        const { data: profile } = await supabaseBrowser
+          .from("profiles")
+          .select("is_admin,email")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        setIsAdmin(
+          Boolean(profile?.is_admin) ||
+            profile?.email === "chumcred@gmail.com" ||
+            user.email === "chumcred@gmail.com"
+        );
+      } else {
+        setIsAdmin(false);
+      }
     }
 
     checkUser();
 
     const { data: listener } = supabaseBrowser.auth.onAuthStateChange(
-      (_event, session) => {
-        setLoggedIn(Boolean(session?.user));
+      async (_event, session) => {
+        const user = session?.user || null;
+
+        setLoggedIn(Boolean(user));
+
+        if (user) {
+          const { data: profile } = await supabaseBrowser
+            .from("profiles")
+            .select("is_admin,email")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          setIsAdmin(
+            Boolean(profile?.is_admin) ||
+              profile?.email === "chumcred@gmail.com" ||
+              user.email === "chumcred@gmail.com"
+          );
+        } else {
+          setIsAdmin(false);
+        }
       }
     );
 
@@ -31,6 +70,7 @@ export default function TopNav() {
   async function handleLogout() {
     await supabaseBrowser.auth.signOut();
     setLoggedIn(false);
+    setIsAdmin(false);
     router.push("/");
   }
 
@@ -41,24 +81,59 @@ export default function TopNav() {
           Chumcred Job Bank
         </Link>
 
-        <nav className="flex items-center gap-5 text-sm font-medium text-slate-700">
+        <nav className="flex items-center gap-4 text-sm font-medium text-slate-700">
           <Link href="/">Home</Link>
           <Link href="/jobs">Jobs</Link>
           <Link href="/employer">Employers</Link>
-          <Link href="/jobs?work_type=remote">Remote Jobs</Link>
-          <Link href="/jobs?country=Nigeria">Nigeria Jobs</Link>
-          <Link href="/jobs?visa=true">Visa Sponsorship</Link>
 
           {loggedIn ? (
             <>
-              <Link href="/dashboard">Dashboard</Link>
-              <Link href="/saved-jobs">Saved Jobs</Link>
-              <Link href="/my-applications">My Applications</Link>
-              <Link href="/job-match">AI Job Match</Link>
-              <Link href="/ai-career-coach">AI Career Coach</Link>
-              <Link href="/ai-cv-review">AI CV Review</Link>
-              <Link href="/profile">Profile</Link>
-              <Link href="/employer/dashboard">Employer Dashboard</Link>
+              <Dropdown title="Candidate">
+                <DropdownLink href="/dashboard">Dashboard</DropdownLink>
+                <DropdownLink href="/profile">Profile</DropdownLink>
+                <DropdownLink href="/saved-jobs">Saved Jobs</DropdownLink>
+                <DropdownLink href="/my-applications">
+                  My Applications
+                </DropdownLink>
+              </Dropdown>
+
+              <Dropdown title="AI Tools">
+                <DropdownLink href="/job-match">AI Job Match</DropdownLink>
+                <DropdownLink href="/ai-career-coach">
+                  AI Career Coach
+                </DropdownLink>
+                <DropdownLink href="/ai-cv-review">AI CV Review</DropdownLink>
+              </Dropdown>
+
+              <Dropdown title="Employer">
+                <DropdownLink href="/employer/dashboard">
+                  Employer Dashboard
+                </DropdownLink>
+                <DropdownLink href="/employer/profile">
+                  Company Profile
+                </DropdownLink>
+                <DropdownLink href="/employer/post-job">Post Job</DropdownLink>
+                <DropdownLink href="/employer/jobs">Manage Jobs</DropdownLink>
+                <DropdownLink href="/employer/plans">
+                  Posting Plans
+                </DropdownLink>
+              </Dropdown>
+
+              {isAdmin && (
+                <Dropdown title="Admin">
+                  <DropdownLink href="/admin">Admin Dashboard</DropdownLink>
+                  <DropdownLink href="/admin/jobs">Manage Jobs</DropdownLink>
+                  <DropdownLink href="/admin/sources">Job Sources</DropdownLink>
+                  <DropdownLink href="/admin/clicks">
+                    Click Analytics
+                  </DropdownLink>
+                  <DropdownLink href="/admin/logs">Fetch Logs</DropdownLink>
+                  <DropdownLink href="/admin/employer-payments">
+                    Employer Payments
+                  </DropdownLink>
+                </Dropdown>
+              )}
+
               <button
                 onClick={handleLogout}
                 className="rounded-xl border px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
@@ -77,10 +152,46 @@ export default function TopNav() {
               </Link>
             </>
           )}
-
-          <Link href="/admin">Admin</Link>
         </nav>
       </div>
     </header>
+  );
+}
+
+function Dropdown({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="group relative">
+      <button className="inline-flex items-center gap-1 rounded-xl px-3 py-2 hover:bg-slate-100">
+        {title}
+        <ChevronDown size={14} />
+      </button>
+
+      <div className="invisible absolute right-0 top-full z-50 mt-2 min-w-56 rounded-2xl border bg-white p-2 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DropdownLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-xl px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+    >
+      {children}
+    </Link>
   );
 }
