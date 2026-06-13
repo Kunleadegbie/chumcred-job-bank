@@ -77,8 +77,15 @@ export default function TopNav() {
   return (
     <header className="sticky top-0 z-50 border-b bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-xl font-bold text-slate-900">
-          Chumcred Job Bank
+        <Link href="/" className="flex items-center gap-3">
+          <img
+            src="/logo.jpeg"
+            alt="Chumcred Intelligence Logo"
+            className="h-12 w-auto"
+          />
+          <span className="hidden text-lg font-bold text-slate-900 md:inline">
+            Job Bank
+          </span>
         </Link>
 
         <nav className="flex items-center gap-4 text-sm font-medium text-slate-700">
