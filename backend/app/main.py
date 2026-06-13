@@ -11,6 +11,7 @@ from app.tasks.cleanup_jobs_task import run_cleanup_jobs_task
 from app.services.ai_matcher import simple_match_score
 from app.services.resume_extractor import extract_resume_text
 from app.services.cv_reviewer import review_cv
+from app.services.interview_iq import generate_interview_question, review_interview_answer
 
 app = FastAPI(
     title="Chumcred Global Job Bank API",
@@ -288,6 +289,88 @@ def cv_review(payload: dict, x_cron_secret: str = Header(default=None)):
             "strengths": result["strengths"],
             "weaknesses": result["weaknesses"],
             "recommendations": result["recommendations"],
+        }).execute()
+
+        return {
+            "status": "completed",
+            "review": result,
+            "saved": bool(insert_response.data)
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.post("/tasks/interview-iq/question")
+def interview_iq_question(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+        supabase = get_supabase()
+
+        user_id = payload.get("user_id")
+        target_role = payload.get("target_role") or "General"
+
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("*")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile = profile_response.data or {}
+        question = generate_interview_question(target_role, profile)
+
+        return {
+            "status": "completed",
+            "target_role": target_role,
+            "question": question
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.post("/tasks/interview-iq/review")
+def interview_iq_review(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+        supabase = get_supabase()
+
+        user_id = payload.get("user_id")
+        target_role = payload.get("target_role") or "General"
+        question = payload.get("question")
+        answer = payload.get("answer")
+
+        if not user_id or not question or not answer:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id, question and answer are required"
+            )
+
+        result = review_interview_answer(question, answer, target_role)
+
+        insert_response = supabase.table("interview_iq_sessions").insert({
+            "user_id": user_id,
+            "target_role": target_role,
+            "question": question,
+            "user_answer": answer,
+            "feedback": result["feedback"],
+            "score": result["score"],
         }).execute()
 
         return {
