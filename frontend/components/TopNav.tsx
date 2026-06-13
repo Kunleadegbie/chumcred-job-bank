@@ -111,6 +111,7 @@ export default function TopNav() {
                 </DropdownLink>
                 <DropdownLink href="/ai-cv-review">AI CV Review</DropdownLink>
                 <DropdownLink href="/interview-iq">InterviewIQ</DropdownLink>
+                <DropdownLink href="/interview-iq/video">Video InterviewIQ</DropdownLink>
               </Dropdown>
 
               <Dropdown title="Employer">
