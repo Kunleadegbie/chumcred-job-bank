@@ -219,6 +219,11 @@ export default function DashboardPage() {
             className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
             AI CV Review
           </Link>
+          <Link
+            href="/interview-iq"
+            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
+            InterviewIQ
+          </Link>
         </div>
       </section>
     </main>

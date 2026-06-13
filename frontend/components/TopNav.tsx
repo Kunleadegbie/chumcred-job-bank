@@ -110,6 +110,7 @@ export default function TopNav() {
                   AI Career Coach
                 </DropdownLink>
                 <DropdownLink href="/ai-cv-review">AI CV Review</DropdownLink>
+                <DropdownLink href="/interview-iq">InterviewIQ</DropdownLink>
               </Dropdown>
 
               <Dropdown title="Employer">
