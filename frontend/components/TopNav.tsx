@@ -165,16 +165,24 @@ function Dropdown({
   title: string;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className="group relative">
-      <button className="inline-flex items-center gap-1 rounded-xl px-3 py-2 hover:bg-slate-100">
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="inline-flex items-center gap-1 rounded-xl px-3 py-2 hover:bg-slate-100"
+      >
         {title}
         <ChevronDown size={14} />
       </button>
 
-      <div className="invisible absolute right-0 top-full z-50 mt-2 min-w-56 rounded-2xl border bg-white p-2 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
-        {children}
-      </div>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-2 min-w-56 rounded-2xl border bg-white p-2 shadow-lg">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
