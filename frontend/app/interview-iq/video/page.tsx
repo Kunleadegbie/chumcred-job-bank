@@ -112,6 +112,9 @@ export default function VideoInterviewIQPage() {
         audio: true,
       });
 
+      console.log("Audio Tracks:", stream.getAudioTracks());
+      console.log("Video Tracks:", stream.getVideoTracks()) ;
+
       streamRef.current = stream;
 
       if (videoRef.current) {
@@ -166,6 +169,8 @@ export default function VideoInterviewIQPage() {
 
     recorder.onstop = () => {
       const blob = new Blob(chunks, {
+      console.log("Recorded Blob Size:", blob.size);
+      console.log("Recorded Blob Type:", blob.type); 
         type: mimeType || "video/webm",
       });
 

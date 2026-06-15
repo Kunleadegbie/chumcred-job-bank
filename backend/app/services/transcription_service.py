@@ -17,6 +17,7 @@ def transcribe_audio_file(file_bytes: bytes, filename: str = "interview.webm") -
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
+                language="en"
             )
 
         return transcript.text or ""
