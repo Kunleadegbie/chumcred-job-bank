@@ -9,8 +9,21 @@ import {
   Square,
   Sparkles,
   FileText,
+  BarChart3,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+
+type Analysis = {
+  communication_score?: number;
+  confidence_score?: number;
+  technical_score?: number;
+  structure_score?: number;
+  professionalism_score?: number;
+  overall_score?: number;
+  strengths?: string;
+  improvements?: string;
+  suggested_answer?: string;
+};
 
 export default function VideoInterviewIQPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -27,7 +40,10 @@ export default function VideoInterviewIQPage() {
   const [videoUrl, setVideoUrl] = useState("");
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [transcript, setTranscript] = useState("");
+
   const [transcribing, setTranscribing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   const [message, setMessage] = useState("");
   const [starting, setStarting] = useState(false);
@@ -70,6 +86,8 @@ export default function VideoInterviewIQPage() {
     setStarting(true);
     setMessage("");
     setQuestion("");
+    setTranscript("");
+    setAnalysis(null);
 
     try {
       const response = await fetch("/api/interview-iq/question", {
@@ -108,9 +126,6 @@ export default function VideoInterviewIQPage() {
         audio: true,
       });
 
-      console.log("Audio Tracks:", stream.getAudioTracks());
-      console.log("Video Tracks:", stream.getVideoTracks());
-
       streamRef.current = stream;
 
       if (videoRef.current) {
@@ -134,6 +149,7 @@ export default function VideoInterviewIQPage() {
   function startRecording() {
     setMessage("");
     setTranscript("");
+    setAnalysis(null);
     setRecordedBlob(null);
 
     if (videoUrl) {
@@ -167,9 +183,6 @@ export default function VideoInterviewIQPage() {
       const blob = new Blob(chunks, {
         type: mimeType || "video/webm",
       });
-
-      console.log("Recorded Blob Size:", blob.size);
-      console.log("Recorded Blob Type:", blob.type);
 
       if (!blob.size) {
         setMessage("Recording failed. Please try again.");
@@ -208,6 +221,7 @@ export default function VideoInterviewIQPage() {
     setTranscribing(true);
     setMessage("");
     setTranscript("");
+    setAnalysis(null);
 
     try {
       const formData = new FormData();
@@ -252,6 +266,47 @@ export default function VideoInterviewIQPage() {
     }
 
     setTranscribing(false);
+  }
+
+  async function analyzeInterview() {
+    if (!transcript.trim()) {
+      setMessage("Please generate transcript before analyzing interview.");
+      return;
+    }
+
+    setAnalyzing(true);
+    setMessage("");
+    setAnalysis(null);
+
+    try {
+      const response = await fetch("/api/interview-iq/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          target_role: targetRole,
+          question,
+          transcript,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to analyze interview.");
+        setAnalyzing(false);
+        return;
+      }
+
+      setAnalysis(data.analysis || null);
+      setMessage("Interview analysis completed successfully.");
+    } catch {
+      setMessage("Unable to reach InterviewIQ analysis service.");
+    }
+
+    setAnalyzing(false);
   }
 
   if (loading) {
@@ -300,7 +355,7 @@ export default function VideoInterviewIQPage() {
         <h1 className="mt-3 text-4xl font-bold">Video Interview Practice</h1>
 
         <p className="mt-3 max-w-3xl text-slate-300">
-          Record your answer, play it back, and generate a transcript for AI review.
+          Record your answer, generate transcript, and analyze your interview performance.
         </p>
       </section>
 
@@ -422,8 +477,75 @@ export default function VideoInterviewIQPage() {
           <p className="mt-4 whitespace-pre-line rounded-2xl bg-slate-50 p-5 text-sm leading-7 text-slate-700">
             {transcript}
           </p>
+
+          <button
+            onClick={analyzeInterview}
+            disabled={analyzing}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            <BarChart3 size={18} />
+            {analyzing ? "Analyzing Interview..." : "Analyze Interview"}
+          </button>
+        </section>
+      )}
+
+      {analysis && (
+        <section className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+            AI Interview Analysis
+          </p>
+
+          <h2 className="mt-2 text-3xl font-bold text-slate-900">
+            Overall Score: {analysis.overall_score || 0}%
+          </h2>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-5">
+            <ScoreCard title="Communication" value={analysis.communication_score} />
+            <ScoreCard title="Confidence" value={analysis.confidence_score} />
+            <ScoreCard title="Technical" value={analysis.technical_score} />
+            <ScoreCard title="Structure" value={analysis.structure_score} />
+            <ScoreCard title="Professionalism" value={analysis.professionalism_score} />
+          </div>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            <TextBox title="Strengths" content={analysis.strengths} />
+            <TextBox title="Improvements" content={analysis.improvements} />
+            <TextBox title="Suggested Better Answer" content={analysis.suggested_answer} />
+          </div>
         </section>
       )}
     </main>
+  );
+}
+
+function ScoreCard({
+  title,
+  value,
+}: {
+  title: string;
+  value?: number;
+}) {
+  return (
+    <div className="rounded-2xl bg-blue-50 p-4 text-center text-blue-700">
+      <p className="text-2xl font-bold">{value || 0}</p>
+      <p className="mt-1 text-xs font-semibold">{title}</p>
+    </div>
+  );
+}
+
+function TextBox({
+  title,
+  content,
+}: {
+  title: string;
+  content?: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-5">
+      <h3 className="font-bold text-slate-900">{title}</h3>
+      <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-700">
+        {content || "Not available."}
+      </p>
+    </div>
   );
 }

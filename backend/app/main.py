@@ -6,6 +6,7 @@ from supabase import create_client
 from app.services.career_coach import generate_career_advice
 from fastapi import UploadFile, File, Form
 from app.services.transcription_service import transcribe_audio_file
+from app.services.interview_iq_analyzer import analyze_interview
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -417,4 +418,25 @@ async def interview_iq_transcribe(
         return {
             "status": "error",
             "message": str(e),
+        }
+
+@app.post("/tasks/interview-iq/analyze")
+async def interview_iq_analyze(payload: dict):
+
+    try:
+        result = analyze_interview(
+            question=payload["question"],
+            transcript=payload["transcript"],
+            target_role=payload["target_role"]
+        )
+
+        return {
+            "status": "completed",
+            "analysis": result
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
         }
