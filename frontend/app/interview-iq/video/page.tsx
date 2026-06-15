@@ -61,10 +61,6 @@ export default function VideoInterviewIQPage() {
 
     return () => {
       streamRef.current?.getTracks().forEach((track) => track.stop());
-
-      if (videoUrl) {
-        URL.revokeObjectURL(videoUrl);
-      }
     };
   }, []);
 
@@ -113,7 +109,7 @@ export default function VideoInterviewIQPage() {
       });
 
       console.log("Audio Tracks:", stream.getAudioTracks());
-      console.log("Video Tracks:", stream.getVideoTracks()) ;
+      console.log("Video Tracks:", stream.getVideoTracks());
 
       streamRef.current = stream;
 
@@ -169,10 +165,11 @@ export default function VideoInterviewIQPage() {
 
     recorder.onstop = () => {
       const blob = new Blob(chunks, {
-      console.log("Recorded Blob Size:", blob.size);
-      console.log("Recorded Blob Type:", blob.type); 
         type: mimeType || "video/webm",
       });
+
+      console.log("Recorded Blob Size:", blob.size);
+      console.log("Recorded Blob Type:", blob.type);
 
       if (!blob.size) {
         setMessage("Recording failed. Please try again.");
@@ -183,7 +180,9 @@ export default function VideoInterviewIQPage() {
 
       setRecordedBlob(blob);
       setVideoUrl(url);
-      setMessage("Recording completed. You can now play it back or generate transcript.");
+      setMessage(
+        "Recording completed. You can now play it back or generate transcript."
+      );
     };
 
     recorder.start();
