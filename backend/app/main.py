@@ -4,6 +4,9 @@ import os
 from datetime import datetime, timezone
 from supabase import create_client
 from app.services.career_coach import generate_career_advice
+from fastapi import UploadFile, File, Form
+from app.services.transcription_service import transcribe_audio_file
+
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
 from app.tasks.archive_jobs_task import run_archive_jobs_task
@@ -386,4 +389,32 @@ def interview_iq_review(payload: dict, x_cron_secret: str = Header(default=None)
         return {
             "status": "error",
             "message": str(e)
+        }
+
+@app.post("/tasks/interview-iq/transcribe")
+async def interview_iq_transcribe(
+    user_id: str = Form(...),
+    question: str = Form(...),
+    target_role: str = Form(default="General"),
+    file: UploadFile = File(...),
+    x_cron_secret: str = Header(default=None),
+):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        file_bytes = await file.read()
+        transcript = transcribe_audio_file(file_bytes, file.filename or "interview.webm")
+
+        return {
+            "status": "completed",
+            "user_id": user_id,
+            "target_role": target_role,
+            "question": question,
+            "transcript": transcript,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
         }
