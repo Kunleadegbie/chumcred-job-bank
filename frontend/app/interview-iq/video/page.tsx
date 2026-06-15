@@ -213,8 +213,14 @@ export default function VideoInterviewIQPage() {
       formData.append("question", question);
       formData.append("file", recordedBlob, "interview-answer.webm");
 
-      const response = await fetch("/api/interview-iq/transcribe", {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+      const cronSecret = process.env.NEXT_PUBLIC_CRON_SECRET;
+
+      const response = await fetch(`${backendUrl}/tasks/interview-iq/transcribe`, {
         method: "POST",
+        headers: {
+          "x-cron-secret": cronSecret || "",
+        },
         body: formData,
       });
 
