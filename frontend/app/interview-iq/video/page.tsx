@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Camera, Lock, Play, Square, Sparkles } from "lucide-react";
+import {
+  Camera,
+  Lock,
+  Play,
+  Square,
+  Sparkles,
+  FileText,
+} from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export default function VideoInterviewIQPage() {
@@ -18,6 +25,10 @@ export default function VideoInterviewIQPage() {
   const [question, setQuestion] = useState("");
   const [recording, setRecording] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [transcript, setTranscript] = useState("");
+  const [transcribing, setTranscribing] = useState(false);
+
   const [message, setMessage] = useState("");
   const [starting, setStarting] = useState(false);
 
@@ -47,6 +58,14 @@ export default function VideoInterviewIQPage() {
     }
 
     init();
+
+    return () => {
+      const stream = videoRef.current?.srcObject as MediaStream | null;
+
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, []);
 
   async function generateQuestion() {
@@ -103,6 +122,9 @@ export default function VideoInterviewIQPage() {
 
   function startRecording() {
     setMessage("");
+    setTranscript("");
+    setRecordedBlob(null);
+    setVideoUrl("");
 
     const stream = videoRef.current?.srcObject as MediaStream | null;
 
@@ -112,7 +134,9 @@ export default function VideoInterviewIQPage() {
     }
 
     const chunks: BlobPart[] = [];
-    const recorder = new MediaRecorder(stream);
+    const recorder = new MediaRecorder(stream, {
+      mimeType: "video/webm",
+    });
 
     mediaRecorderRef.current = recorder;
 
@@ -125,6 +149,8 @@ export default function VideoInterviewIQPage() {
     recorder.onstop = () => {
       const blob = new Blob(chunks, { type: "video/webm" });
       const url = URL.createObjectURL(blob);
+
+      setRecordedBlob(blob);
       setVideoUrl(url);
 
       if (playbackRef.current) {
@@ -139,6 +165,50 @@ export default function VideoInterviewIQPage() {
   function stopRecording() {
     mediaRecorderRef.current?.stop();
     setRecording(false);
+  }
+
+  async function transcribeRecording() {
+    if (!recordedBlob) {
+      setMessage("Please record your answer before transcribing.");
+      return;
+    }
+
+    if (!question) {
+      setMessage("Please generate an interview question first.");
+      return;
+    }
+
+    setTranscribing(true);
+    setMessage("");
+    setTranscript("");
+
+    try {
+      const formData = new FormData();
+
+      formData.append("user_id", userId);
+      formData.append("target_role", targetRole);
+      formData.append("question", question);
+      formData.append("file", recordedBlob, "interview-answer.webm");
+
+      const response = await fetch("/api/interview-iq/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to transcribe video.");
+        setTranscribing(false);
+        return;
+      }
+
+      setTranscript(data.transcript || "");
+    } catch {
+      setMessage("Unable to reach transcription service.");
+    }
+
+    setTranscribing(false);
   }
 
   if (loading) {
@@ -191,13 +261,11 @@ export default function VideoInterviewIQPage() {
           Premium InterviewIQ
         </p>
 
-        <h1 className="mt-3 text-4xl font-bold">
-          Video Interview Practice
-        </h1>
+        <h1 className="mt-3 text-4xl font-bold">Video Interview Practice</h1>
 
         <p className="mt-3 max-w-3xl text-slate-300">
-          Practice answering interview questions on camera. This helps you improve
-          confidence, structure and delivery before the real interview.
+          Practice answering interview questions on camera. Record your answer,
+          play it back, and generate a transcript for AI review.
         </p>
       </section>
 
@@ -240,10 +308,13 @@ export default function VideoInterviewIQPage() {
         </div>
 
         <div className="rounded-3xl border bg-white p-6 shadow-sm lg:col-span-2">
-          <h2 className="text-xl font-bold text-slate-900">Interview Question</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            Interview Question
+          </h2>
 
           <div className="mt-4 rounded-2xl bg-slate-50 p-5 text-slate-800">
-            {question || "Generate a question to begin your video interview practice."}
+            {question ||
+              "Generate a question to begin your video interview practice."}
           </div>
 
           <div className="mt-6 overflow-hidden rounded-2xl bg-black">
@@ -274,6 +345,17 @@ export default function VideoInterviewIQPage() {
                 Stop Recording
               </button>
             )}
+
+            {recordedBlob && (
+              <button
+                onClick={transcribeRecording}
+                disabled={transcribing}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                <FileText size={18} />
+                {transcribing ? "Transcribing..." : "Generate Transcript"}
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -292,6 +374,22 @@ export default function VideoInterviewIQPage() {
           <div className="mt-6 overflow-hidden rounded-2xl bg-black">
             <video ref={playbackRef} controls className="h-80 w-full object-cover" />
           </div>
+        </section>
+      )}
+
+      {transcript && (
+        <section className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+            Transcript
+          </p>
+
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">
+            Your Transcribed Answer
+          </h2>
+
+          <p className="mt-4 whitespace-pre-line rounded-2xl bg-slate-50 p-5 text-sm leading-7 text-slate-700">
+            {transcript}
+          </p>
         </section>
       )}
     </main>
