@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Brain, Send, Sparkles } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -17,7 +16,6 @@ type InterviewSession = {
 };
 
 export default function InterviewIQPage() {
-  const searchParams = useSearchParams();
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
   const [question, setQuestion] = useState("");
@@ -56,13 +54,16 @@ export default function InterviewIQPage() {
         return;
       }
 
-      const roleFromUrl = searchParams.get("role");
-      const companyFromUrl = searchParams.get("company");
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const roleFromUrl = params.get("role");
+        const companyFromUrl = params.get("company");
 
-      if (roleFromUrl) {
-        setTargetRole(
-          companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
-        );
+        if (roleFromUrl) {
+          setTargetRole(
+            companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
+          );
+        }
       }
 
       setUserId(user.id);
@@ -71,7 +72,7 @@ export default function InterviewIQPage() {
     }
 
     init();
-  }, [searchParams]);
+  }, []);
 
   async function startInterview() {
     if (!userId || !targetRole.trim()) return;
@@ -187,9 +188,11 @@ export default function InterviewIQPage() {
               Prepare for real interviews by answering AI-generated questions
               based on your target role and career profile.
             </p>
+
             <Link
               href="/interview-iq/video"
-              className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700">
+              className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+            >
               Open Premium Video InterviewIQ
             </Link>
           </div>
