@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Brain, Send, Sparkles } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -16,6 +17,7 @@ type InterviewSession = {
 };
 
 export default function InterviewIQPage() {
+  const searchParams = useSearchParams();
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
   const [question, setQuestion] = useState("");
@@ -54,13 +56,22 @@ export default function InterviewIQPage() {
         return;
       }
 
+      const roleFromUrl = searchParams.get("role");
+      const companyFromUrl = searchParams.get("company");
+
+      if (roleFromUrl) {
+        setTargetRole(
+          companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
+        );
+      }
+
       setUserId(user.id);
       await loadSessions(user.id);
       setLoading(false);
     }
 
     init();
-  }, []);
+  }, [searchParams]);
 
   async function startInterview() {
     if (!userId || !targetRole.trim()) return;

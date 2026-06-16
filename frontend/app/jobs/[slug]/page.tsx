@@ -10,8 +10,8 @@ import {
   Briefcase,
   GraduationCap,
   Banknote,
-  ExternalLink,
   Globe2,
+  Brain,
 } from "lucide-react";
 import JobCard from "@/components/JobCard";
 
@@ -83,6 +83,10 @@ export default async function JobDetailsPage({
   }
 
   const relatedJobs = await getRelatedJobs(job);
+
+  const practiceInterviewUrl = `/interview-iq?role=${encodeURIComponent(
+    job.title || ""
+  )}&company=${encodeURIComponent(job.company_name || "")}`;
 
   return (
     <main className="bg-slate-50">
@@ -215,9 +219,19 @@ export default async function JobDetailsPage({
                 </div>
               </div>
             </div>
+
             <div className="mt-6">
               <SaveJobButton jobId={job.id} />
             </div>
+
+            <Link
+              href={practiceInterviewUrl}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-center font-semibold text-white hover:bg-blue-700"
+            >
+              <Brain size={16} />
+              Practice Interview
+            </Link>
+
             <ApplyButton jobId={job.id} applyUrl={job.original_job_url} />
 
             <p className="mt-3 text-xs text-slate-500">
