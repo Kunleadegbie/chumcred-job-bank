@@ -10,6 +10,7 @@ import {
   Sparkles,
   FileText,
   BarChart3,
+  Download,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -47,6 +48,10 @@ export default function VideoInterviewIQPage() {
 
   const [message, setMessage] = useState("");
   const [starting, setStarting] = useState(false);
+
+  function downloadInterviewReport() {
+    window.print();
+  }
 
   useEffect(() => {
     async function init() {
@@ -92,13 +97,8 @@ export default function VideoInterviewIQPage() {
     try {
       const response = await fetch("/api/interview-iq/question", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          target_role: targetRole,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, target_role: targetRole }),
       });
 
       const data = await response.json();
@@ -180,9 +180,7 @@ export default function VideoInterviewIQPage() {
     };
 
     recorder.onstop = () => {
-      const blob = new Blob(chunks, {
-        type: mimeType || "video/webm",
-      });
+      const blob = new Blob(chunks, { type: mimeType || "video/webm" });
 
       if (!blob.size) {
         setMessage("Recording failed. Please try again.");
@@ -236,9 +234,7 @@ export default function VideoInterviewIQPage() {
 
       const response = await fetch(`${backendUrl}/tasks/interview-iq/transcribe`, {
         method: "POST",
-        headers: {
-          "x-cron-secret": cronSecret || "",
-        },
+        headers: { "x-cron-secret": cronSecret || "" },
         body: formData,
       });
 
@@ -281,9 +277,7 @@ export default function VideoInterviewIQPage() {
     try {
       const response = await fetch("/api/interview-iq/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
           target_role: targetRole,
@@ -405,40 +399,24 @@ export default function VideoInterviewIQPage() {
           </div>
 
           <div className="mt-6 overflow-hidden rounded-2xl bg-black">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="h-80 w-full object-cover"
-            />
+            <video ref={videoRef} autoPlay muted playsInline className="h-80 w-full object-cover" />
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
             {!recording ? (
-              <button
-                onClick={startRecording}
-                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700"
-              >
+              <button onClick={startRecording} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700">
                 <Play size={18} />
                 Start Recording
               </button>
             ) : (
-              <button
-                onClick={stopRecording}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-800"
-              >
+              <button onClick={stopRecording} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-800">
                 <Square size={18} />
                 Stop Recording
               </button>
             )}
 
             {recordedBlob && (
-              <button
-                onClick={transcribeRecording}
-                disabled={transcribing}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-              >
+              <button onClick={transcribeRecording} disabled={transcribing} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
                 <FileText size={18} />
                 {transcribing ? "Transcribing..." : "Generate Transcript"}
               </button>
@@ -449,17 +427,10 @@ export default function VideoInterviewIQPage() {
 
       {videoUrl && (
         <section className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
-          <h2 className="text-2xl font-bold text-slate-900">
-            Playback Your Answer
-          </h2>
+          <h2 className="text-2xl font-bold text-slate-900">Playback Your Answer</h2>
 
           <div className="mt-6 overflow-hidden rounded-2xl bg-black">
-            <video
-              src={videoUrl}
-              controls
-              playsInline
-              className="h-80 w-full object-cover"
-            />
+            <video src={videoUrl} controls playsInline className="h-80 w-full object-cover" />
           </div>
         </section>
       )}
@@ -499,6 +470,14 @@ export default function VideoInterviewIQPage() {
             Overall Score: {analysis.overall_score || 0}%
           </h2>
 
+          <button
+            onClick={downloadInterviewReport}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+          >
+            <Download size={18} />
+            Download Interview Report
+          </button>
+
           <div className="mt-6 grid gap-4 md:grid-cols-5">
             <ScoreCard title="Communication" value={analysis.communication_score} />
             <ScoreCard title="Confidence" value={analysis.confidence_score} />
@@ -518,13 +497,7 @@ export default function VideoInterviewIQPage() {
   );
 }
 
-function ScoreCard({
-  title,
-  value,
-}: {
-  title: string;
-  value?: number;
-}) {
+function ScoreCard({ title, value }: { title: string; value?: number }) {
   return (
     <div className="rounded-2xl bg-blue-50 p-4 text-center text-blue-700">
       <p className="text-2xl font-bold">{value || 0}</p>
@@ -533,13 +506,7 @@ function ScoreCard({
   );
 }
 
-function TextBox({
-  title,
-  content,
-}: {
-  title: string;
-  content?: string;
-}) {
+function TextBox({ title, content }: { title: string; content?: string }) {
   return (
     <div className="rounded-2xl bg-slate-50 p-5">
       <h3 className="font-bold text-slate-900">{title}</h3>
