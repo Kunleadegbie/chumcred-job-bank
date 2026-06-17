@@ -318,6 +318,7 @@ def interview_iq_question(payload: dict, x_cron_secret: str = Header(default=Non
 
         user_id = payload.get("user_id")
         target_role = payload.get("target_role") or "General"
+        job_context = payload.get("job_context") or None
 
         if not user_id:
             raise HTTPException(status_code=400, detail="user_id is required")
@@ -331,7 +332,7 @@ def interview_iq_question(payload: dict, x_cron_secret: str = Header(default=Non
         )
 
         profile = profile_response.data or {}
-        question = generate_interview_question(target_role, profile)
+        question = generate_interview_question(target_role, profile, job_context)
 
         return {
             "status": "completed",
@@ -359,6 +360,7 @@ def interview_iq_review(payload: dict, x_cron_secret: str = Header(default=None)
         target_role = payload.get("target_role") or "General"
         question = payload.get("question")
         answer = payload.get("answer")
+        job_context = payload.get("job_context") or None
 
         if not user_id or not question or not answer:
             raise HTTPException(
@@ -366,7 +368,7 @@ def interview_iq_review(payload: dict, x_cron_secret: str = Header(default=None)
                 detail="user_id, question and answer are required"
             )
 
-        result = review_interview_answer(question, answer, target_role)
+        result = review_interview_answer(question, answer, target_role, None, job_context)
 
         insert_response = supabase.table("interview_iq_sessions").insert({
             "user_id": user_id,

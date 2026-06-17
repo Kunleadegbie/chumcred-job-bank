@@ -7,35 +7,35 @@ QUESTION_BANK = {
         "Why are you interested in this role?",
         "What are your strongest skills for this position?",
         "Describe a challenge you faced and how you handled it.",
-        "Where do you see yourself in the next few years?"
+        "Where do you see yourself in the next few years?",
     ],
     "business analyst": [
         "How do you gather and document business requirements?",
         "Describe a time you used data to solve a business problem.",
         "How do you manage conflicting stakeholder expectations?",
         "What tools do you use for reporting and analysis?",
-        "How would you improve a poorly performing business process?"
+        "How would you improve a poorly performing business process?",
     ],
     "data analyst": [
         "How do you clean and validate data before analysis?",
         "Explain a dashboard or report you have built.",
         "How do you communicate insights to non-technical stakeholders?",
         "What is your experience with Excel, SQL, Power BI or Python?",
-        "Describe a time your analysis influenced a business decision."
+        "Describe a time your analysis influenced a business decision.",
     ],
     "product manager": [
         "How do you prioritize product features?",
         "How do you gather customer feedback?",
         "Describe how you would launch a new product.",
         "How do you work with engineering, design and business teams?",
-        "What metrics would you track for product success?"
+        "What metrics would you track for product success?",
     ],
     "sales": [
         "How do you identify and approach new customers?",
         "Describe how you handle rejection in sales.",
         "How do you manage customer relationships?",
         "Tell me about a time you exceeded a sales target.",
-        "How do you convert prospects into paying customers?"
+        "How do you convert prospects into paying customers?",
     ],
 }
 
@@ -55,13 +55,82 @@ def normalize_role(role: str) -> str:
     return "general"
 
 
-def generate_interview_question(target_role: str, profile: dict | None = None) -> str:
+def generate_job_aware_question(target_role: str, job_context: dict | None = None) -> str:
+    job_context = job_context or {}
+
+    title = job_context.get("title") or target_role or "this role"
+    company = job_context.get("company_name") or "the company"
+    description = (job_context.get("description") or "").lower()
+    requirements = (job_context.get("requirements") or "").lower()
+    responsibilities = (job_context.get("responsibilities") or "").lower()
+
+    combined = f"{description} {requirements} {responsibilities}"
+
+    job_specific_questions = []
+
+    if any(word in combined for word in ["stakeholder", "requirements", "business requirement", "brd", "user story"]):
+        job_specific_questions.append(
+            f"This {title} role at {company} requires stakeholder and requirements management. "
+            "Describe how you would gather, validate and document requirements for this position."
+        )
+
+    if any(word in combined for word in ["data", "dashboard", "report", "analytics", "power bi", "sql", "excel"]):
+        job_specific_questions.append(
+            f"This role appears to involve data analysis or reporting. "
+            "Tell me about a time you used data, dashboards or reports to support a business decision."
+        )
+
+    if any(word in combined for word in ["customer", "client", "relationship", "sales", "revenue"]):
+        job_specific_questions.append(
+            f"This {title} role appears to involve customer or revenue responsibilities. "
+            "How would you manage client expectations while still achieving business targets?"
+        )
+
+    if any(word in combined for word in ["project", "implementation", "delivery", "timeline", "deadline"]):
+        job_specific_questions.append(
+            f"This position appears to involve project delivery. "
+            "Describe how you would manage timelines, risks and stakeholders to deliver successfully."
+        )
+
+    if any(word in combined for word in ["risk", "compliance", "audit", "control", "regulatory"]):
+        job_specific_questions.append(
+            f"This role appears to involve risk, compliance or control responsibilities. "
+            "Describe how you would identify a control weakness and recommend corrective action."
+        )
+
+    if any(word in combined for word in ["team", "lead", "supervise", "manager", "management"]):
+        job_specific_questions.append(
+            f"This {title} role may require leadership. "
+            "Tell me about a time you led a team or influenced people to achieve a result."
+        )
+
+    if job_specific_questions:
+        return random.choice(job_specific_questions)
+
+    role_key = normalize_role(target_role)
+    return random.choice(QUESTION_BANK.get(role_key, QUESTION_BANK["general"]))
+
+
+def generate_interview_question(
+    target_role: str,
+    profile: dict | None = None,
+    job_context: dict | None = None,
+) -> str:
+    if job_context:
+        return generate_job_aware_question(target_role, job_context)
+
     role_key = normalize_role(target_role)
     questions = QUESTION_BANK.get(role_key, QUESTION_BANK["general"])
     return random.choice(questions)
 
 
-def review_interview_answer(question: str, answer: str, target_role: str, profile: dict | None = None) -> dict:
+def review_interview_answer(
+    question: str,
+    answer: str,
+    target_role: str,
+    profile: dict | None = None,
+    job_context: dict | None = None,
+) -> dict:
     answer_text = (answer or "").strip()
     lower_answer = answer_text.lower()
 
@@ -102,9 +171,13 @@ def review_interview_answer(question: str, answer: str, target_role: str, profil
     else:
         summary = "The answer needs more structure, examples and measurable impact."
 
+    role_context = target_role
+    if job_context and job_context.get("title"):
+        role_context = f"{job_context.get('title')} role"
+
     sample_answer = (
         f"A stronger answer should directly answer the question, give a specific example, "
-        f"explain the action you took, and end with a measurable result relevant to {target_role}."
+        f"explain the action you took, and end with a measurable result relevant to {role_context}."
     )
 
     return {
@@ -117,5 +190,5 @@ def review_interview_answer(question: str, answer: str, target_role: str, profil
             f"{chr(10).join('• ' + item for item in improvements) if improvements else '• Continue adding clear examples and measurable achievements.'}\n\n"
             f"Suggested better approach:\n"
             f"{sample_answer}"
-        )
+        ),
     }
