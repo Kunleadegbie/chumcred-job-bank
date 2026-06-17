@@ -12,6 +12,35 @@ type PageProps = {
   }>;
 };
 
+function matchesNigeria(job: any) {
+  const text = `${job.country || ""} ${job.location_display || ""} ${
+    job.city || ""
+  } ${job.state_region || ""}`.toLowerCase();
+
+  return (
+    text.includes("nigeria") ||
+    text.includes("lagos") ||
+    text.includes("abuja") ||
+    text.includes("port harcourt") ||
+    text.includes("ibadan")
+  );
+}
+
+function matchesVisa(job: any) {
+  const text = `${job.title || ""} ${job.company_name || ""} ${
+    job.description || ""
+  } ${job.requirements || ""} ${job.benefits || ""}`.toLowerCase();
+
+  return (
+    job.visa_sponsorship === true ||
+    text.includes("visa sponsorship") ||
+    text.includes("visa sponsor") ||
+    text.includes("sponsorship") ||
+    text.includes("relocation") ||
+    text.includes("work permit")
+  );
+}
+
 export default async function JobsPage({ searchParams }: PageProps) {
   const params = (await searchParams) || {};
 
@@ -20,34 +49,14 @@ export default async function JobsPage({ searchParams }: PageProps) {
   const workType = params.work_type || "";
   const visa = params.visa || "";
 
-  let jobsQuery = supabase
+  const { data: normalJobs } = await supabase
     .from("jobs")
     .select("*")
     .order("is_featured", { ascending: false })
     .order("posted_at", { ascending: false })
-    .limit(100);
+    .limit(300);
 
-  if (q) {
-    jobsQuery = jobsQuery.or(
-      `title.ilike.%${q}%,company_name.ilike.%${q}%,description.ilike.%${q}%`
-    );
-  }
-
-  if (country) {
-    jobsQuery = jobsQuery.ilike("country", `%${country}%`);
-  }
-
-  if (workType) {
-    jobsQuery = jobsQuery.ilike("work_type", `%${workType}%`);
-  }
-
-  if (visa === "true") {
-    jobsQuery = jobsQuery.eq("visa_sponsorship", true);
-  }
-
-  const { data: normalJobs } = await jobsQuery;
-
-  let employerJobsQuery = supabase
+  const { data: employerJobsData } = await supabase
     .from("employer_jobs")
     .select(
       `
@@ -60,17 +69,7 @@ export default async function JobsPage({ searchParams }: PageProps) {
     .eq("status", "published")
     .order("is_featured", { ascending: false })
     .order("posted_at", { ascending: false })
-    .limit(100);
-
-  if (country) {
-    employerJobsQuery = employerJobsQuery.ilike("country", `%${country}%`);
-  }
-
-  if (workType) {
-    employerJobsQuery = employerJobsQuery.ilike("work_type", `%${workType}%`);
-  }
-
-  const { data: employerJobsData } = await employerJobsQuery;
+    .limit(300);
 
   const employerJobs = (employerJobsData || []).map((job: any) => ({
     id: job.id,
@@ -81,6 +80,7 @@ export default async function JobsPage({ searchParams }: PageProps) {
       job.location_display || job.city || job.country || "Location not stated",
     country: job.country || "",
     city: job.city || "",
+    state_region: job.state_region || "",
     description: job.description || "",
     requirements: job.requirements || "",
     responsibilities: job.responsibilities || "",
@@ -100,13 +100,36 @@ export default async function JobsPage({ searchParams }: PageProps) {
 
   const combinedJobs = [...employerJobs, ...(normalJobs || [])]
     .filter((job: any) => {
-      if (!q) return true;
-
       const searchText = `${job.title || ""} ${job.company_name || ""} ${
         job.description || ""
-      }`.toLowerCase();
+      } ${job.requirements || ""}`.toLowerCase();
 
-      return searchText.includes(q.toLowerCase());
+      if (q && !searchText.includes(q.toLowerCase())) return false;
+
+      if (country.toLowerCase() === "nigeria" && !matchesNigeria(job)) {
+        return false;
+      }
+
+      if (
+        country &&
+        country.toLowerCase() !== "nigeria" &&
+        !`${job.country || ""} ${job.location_display || ""}`
+          .toLowerCase()
+          .includes(country.toLowerCase())
+      ) {
+        return false;
+      }
+
+      if (
+        workType &&
+        !`${job.work_type || ""}`.toLowerCase().includes(workType.toLowerCase())
+      ) {
+        return false;
+      }
+
+      if (visa === "true" && !matchesVisa(job)) return false;
+
+      return true;
     })
     .sort((a: any, b: any) => {
       if (a.is_featured && !b.is_featured) return -1;
