@@ -15,9 +15,20 @@ type InterviewSession = {
   created_at: string | null;
 };
 
+type JobContext = {
+  id: string;
+  title: string | null;
+  company_name: string | null;
+  description: string | null;
+  requirements: string | null;
+  responsibilities: string | null;
+};
+
 export default function InterviewIQPage() {
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
+  const [jobContext, setJobContext] = useState<JobContext | null>(null);
+
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -44,6 +55,30 @@ export default function InterviewIQPage() {
     setSessions((data || []) as InterviewSession[]);
   }
 
+  async function loadJobContext(jobId: string) {
+    const { data, error } = await supabaseBrowser
+      .from("jobs")
+      .select("id,title,company_name,description,requirements,responsibilities")
+      .eq("id", jobId)
+      .maybeSingle();
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    if (data) {
+      const job = data as JobContext;
+      setJobContext(job);
+
+      const roleText = job.company_name
+        ? `${job.title || "Job"} at ${job.company_name}`
+        : job.title || "Job Interview";
+
+      setTargetRole(roleText);
+    }
+  }
+
   useEffect(() => {
     async function init() {
       const { data: userData } = await supabaseBrowser.auth.getUser();
@@ -56,10 +91,14 @@ export default function InterviewIQPage() {
 
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
+
+        const jobId = params.get("job_id");
         const roleFromUrl = params.get("role");
         const companyFromUrl = params.get("company");
 
-        if (roleFromUrl) {
+        if (jobId) {
+          await loadJobContext(jobId);
+        } else if (roleFromUrl) {
           setTargetRole(
             companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
           );
@@ -93,6 +132,7 @@ export default function InterviewIQPage() {
         body: JSON.stringify({
           user_id: userId,
           target_role: targetRole,
+          job_context: jobContext,
         }),
       });
 
@@ -134,6 +174,7 @@ export default function InterviewIQPage() {
           target_role: targetRole,
           question,
           answer,
+          job_context: jobContext,
         }),
       });
 
@@ -203,6 +244,24 @@ export default function InterviewIQPage() {
         <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700">
           {message}
         </div>
+      )}
+
+      {jobContext && (
+        <section className="mt-8 rounded-3xl border bg-blue-50 p-6">
+          <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+            Job-Aware Interview Mode
+          </p>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">
+            {jobContext.title}
+          </h2>
+          <p className="mt-1 text-slate-700">
+            {jobContext.company_name || "Company not stated"}
+          </p>
+          <p className="mt-3 text-sm text-slate-600">
+            InterviewIQ will use this job context to prepare more relevant
+            interview questions.
+          </p>
+        </section>
       )}
 
       <section className="mt-8 grid gap-6 lg:grid-cols-3">

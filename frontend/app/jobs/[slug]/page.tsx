@@ -84,9 +84,9 @@ export default async function JobDetailsPage({
 
   const relatedJobs = await getRelatedJobs(job);
 
-  const practiceInterviewUrl = `/interview-iq?role=${encodeURIComponent(
-    job.title || ""
-  )}&company=${encodeURIComponent(job.company_name || "")}`;
+  const practiceInterviewUrl = `/interview-iq?job_id=${encodeURIComponent(
+    job.id
+  )}`;
 
   return (
     <main className="bg-slate-50">
