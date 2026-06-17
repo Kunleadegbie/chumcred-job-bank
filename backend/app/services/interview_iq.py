@@ -1,6 +1,5 @@
 import random
 
-
 QUESTION_BANK = {
     "general": [
         "Tell me about yourself and your professional background.",
@@ -39,6 +38,56 @@ QUESTION_BANK = {
     ],
 }
 
+
+from openai import OpenAI
+import os
+import random
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+
+# ADD THE NEW FUNCTION HERE
+def generate_ai_job_question(target_role: str, job_context: dict):
+    prompt = f"""
+You are a senior recruiter.
+
+Generate ONE realistic interview question.
+
+Role:
+{target_role}
+
+Company:
+{job_context.get("company_name","")}
+
+Job Title:
+{job_context.get("title","")}
+
+Job Description:
+{job_context.get("description","")}
+
+Requirements:
+{job_context.get("requirements","")}
+
+Responsibilities:
+{job_context.get("responsibilities","")}
+
+Return only the interview question.
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=0.8,
+        max_tokens=120,
+    )
+
+    return response.choices[0].message.content.strip()    
 
 def normalize_role(role: str) -> str:
     role = (role or "").lower()
@@ -207,7 +256,16 @@ def generate_interview_question(
     job_context: dict | None = None,
 ) -> str:
     if job_context:
-        return generate_job_aware_question(target_role, job_context)
+        try:
+            return generate_ai_job_question(
+                target_role,
+                job_context
+            )
+        except Exception:
+            return generate_job_aware_question(
+                target_role,
+                job_context
+            )
 
     role_key = normalize_role(target_role)
     questions = QUESTION_BANK.get(role_key, QUESTION_BANK["general"])
