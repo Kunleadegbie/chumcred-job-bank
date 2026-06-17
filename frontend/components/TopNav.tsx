@@ -90,7 +90,12 @@ export default function TopNav() {
 
         <nav className="flex items-center gap-4 text-sm font-medium text-slate-700">
           <Link href="/">Home</Link>
-          <Link href="/jobs">Jobs</Link>
+          <Dropdown title="Jobs">
+            <DropdownLink href="/jobs">All Jobs</DropdownLink>
+            <DropdownLink href="/jobs?country=Nigeria">Nigeria Jobs</DropdownLink>
+            <DropdownLink href="/jobs?work_type=remote">Remote Jobs</DropdownLink>
+            <DropdownLink href="/jobs?visa=true">Visa Sponsorship Jobs</DropdownLink>
+          </Dropdown>
           <Link href="/employer">Employers</Link>
 
           {loggedIn ? (
