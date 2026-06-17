@@ -60,56 +60,146 @@ def generate_job_aware_question(target_role: str, job_context: dict | None = Non
 
     title = job_context.get("title") or target_role or "this role"
     company = job_context.get("company_name") or "the company"
+
     description = (job_context.get("description") or "").lower()
     requirements = (job_context.get("requirements") or "").lower()
     responsibilities = (job_context.get("responsibilities") or "").lower()
 
     combined = f"{description} {requirements} {responsibilities}"
 
+    company_lower = company.lower()
+
     job_specific_questions = []
 
-    if any(word in combined for word in ["stakeholder", "requirements", "business requirement", "brd", "user story"]):
+    # =====================================================
+    # COMPANY-SPECIFIC QUESTIONS
+    # =====================================================
+
+    # Banking & Financial Services
+    if any(x in company_lower for x in [
+        "access", "gtbank", "guaranty", "zenith",
+        "uba", "first bank", "fidelity", "stanbic",
+        "ecobank", "wema", "sterling"
+    ]):
+        job_specific_questions.extend([
+            f"{company} operates in a highly regulated banking environment. Describe how you would balance customer satisfaction, revenue growth and regulatory compliance.",
+            f"Tell me about a time you identified a business risk or control weakness and how you addressed it.",
+            f"How would you handle pressure from management to achieve targets while maintaining compliance standards?"
+        ])
+
+    # Consulting Firms
+    if any(x in company_lower for x in [
+        "pwc", "kpmg", "deloitte", "ey",
+        "ernst", "accenture", "mckinsey",
+        "bcg", "bain"
+    ]):
+        job_specific_questions.extend([
+            f"Consulting firms such as {company} work with multiple clients and stakeholders. Describe a situation where you solved a complex business problem.",
+            f"How would you approach a client engagement where requirements are unclear?",
+            f"Describe how you present technical findings to senior executives."
+        ])
+
+    # Telecoms
+    if any(x in company_lower for x in [
+        "glo", "globacom", "mtn", "airtel", "9mobile"
+    ]):
+        job_specific_questions.extend([
+            f"{company} serves millions of customers. Describe how you would use data to improve customer experience.",
+            f"Tell me about a time you improved operational efficiency or sales performance.",
+            f"How would you identify and reduce revenue leakage in a telecom environment?"
+        ])
+
+    # Technology Companies
+    if any(x in company_lower for x in [
+        "google", "microsoft", "amazon",
+        "meta", "apple", "oracle",
+        "salesforce", "openai"
+    ]):
+        job_specific_questions.extend([
+            f"In a technology-driven company like {company}, innovation is critical. Tell me about a time you introduced a new idea that improved results.",
+            f"Describe how you manage competing priorities when multiple stakeholders require urgent delivery.",
+            f"How would you use data and experimentation to improve a product or process?"
+        ])
+
+    # Oil & Gas / Energy
+    if any(x in company_lower for x in [
+        "nnpc", "shell", "chevron",
+        "total", "seplat", "mobil",
+        "exxon", "energy"
+    ]):
+        job_specific_questions.extend([
+            f"{company} operates in a high-risk environment. Describe how you would manage operational and compliance risks.",
+            f"Tell me about a time you improved efficiency, reduced waste or optimized resources.",
+            f"How would you handle conflicting priorities between safety, cost and operational targets?"
+        ])
+
+    # =====================================================
+    # JOB-SPECIFIC QUESTIONS
+    # =====================================================
+
+    if any(word in combined for word in [
+        "stakeholder", "requirements",
+        "business requirement", "brd", "user story"
+    ]):
         job_specific_questions.append(
-            f"This {title} role at {company} requires stakeholder and requirements management. "
-            "Describe how you would gather, validate and document requirements for this position."
+            f"This {title} role at {company} requires stakeholder and requirements management. Describe how you would gather, validate and document requirements."
         )
 
-    if any(word in combined for word in ["data", "dashboard", "report", "analytics", "power bi", "sql", "excel"]):
+    if any(word in combined for word in [
+        "data", "dashboard", "report",
+        "analytics", "power bi", "sql", "excel"
+    ]):
         job_specific_questions.append(
-            f"This role appears to involve data analysis or reporting. "
-            "Tell me about a time you used data, dashboards or reports to support a business decision."
+            f"This role appears to involve analytics and reporting. Tell me about a time you used data to support a business decision."
         )
 
-    if any(word in combined for word in ["customer", "client", "relationship", "sales", "revenue"]):
+    if any(word in combined for word in [
+        "customer", "client", "relationship",
+        "sales", "revenue"
+    ]):
         job_specific_questions.append(
-            f"This {title} role appears to involve customer or revenue responsibilities. "
-            "How would you manage client expectations while still achieving business targets?"
+            f"This role appears to involve customer engagement. How would you manage customer expectations while achieving business targets?"
         )
 
-    if any(word in combined for word in ["project", "implementation", "delivery", "timeline", "deadline"]):
+    if any(word in combined for word in [
+        "project", "implementation",
+        "delivery", "timeline", "deadline"
+    ]):
         job_specific_questions.append(
-            f"This position appears to involve project delivery. "
-            "Describe how you would manage timelines, risks and stakeholders to deliver successfully."
+            f"This position involves project delivery. Describe how you manage timelines, risks and stakeholders."
         )
 
-    if any(word in combined for word in ["risk", "compliance", "audit", "control", "regulatory"]):
+    if any(word in combined for word in [
+        "risk", "compliance",
+        "audit", "control", "regulatory"
+    ]):
         job_specific_questions.append(
-            f"This role appears to involve risk, compliance or control responsibilities. "
-            "Describe how you would identify a control weakness and recommend corrective action."
+            f"This role involves risk and compliance responsibilities. Describe how you would identify and address a control weakness."
         )
 
-    if any(word in combined for word in ["team", "lead", "supervise", "manager", "management"]):
+    if any(word in combined for word in [
+        "team", "lead", "supervise",
+        "manager", "management"
+    ]):
         job_specific_questions.append(
-            f"This {title} role may require leadership. "
-            "Tell me about a time you led a team or influenced people to achieve a result."
+            f"This role requires leadership. Tell me about a time you led a team and delivered measurable results."
         )
+
+    # =====================================================
+    # RETURN BEST QUESTION
+    # =====================================================
 
     if job_specific_questions:
         return random.choice(job_specific_questions)
 
     role_key = normalize_role(target_role)
-    return random.choice(QUESTION_BANK.get(role_key, QUESTION_BANK["general"]))
 
+    return random.choice(
+        QUESTION_BANK.get(
+            role_key,
+            QUESTION_BANK["general"]
+        )
+    )
 
 def generate_interview_question(
     target_role: str,
