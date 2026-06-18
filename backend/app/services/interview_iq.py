@@ -261,7 +261,9 @@ def generate_interview_question(
                 target_role,
                 job_context
             )
-        except Exception:
+        except Exception as e:
+            print(f"InterviewIQ AI fallback: {e}")
+
             return generate_job_aware_question(
                 target_role,
                 job_context
