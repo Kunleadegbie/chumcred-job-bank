@@ -337,6 +337,9 @@ def interview_iq_question(payload: dict, x_cron_secret: str = Header(default=Non
         return {
             "status": "completed",
             "target_role": target_role,
+            "has_job_context": bool(job_context),
+            "job_company": job_context.get("company_name") if job_context else None,
+            "job_title": job_context.get("title") if job_context else None,
             "question": question
         }
 
