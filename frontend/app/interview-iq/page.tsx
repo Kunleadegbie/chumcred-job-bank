@@ -100,40 +100,52 @@ export default function InterviewIQPage() {
 
   useEffect(() => {
     async function init() {
-      const { data: userData } = await supabaseBrowser.auth.getUser();
-      const user = userData.user;
+      try {
+        const { data: userData } = await supabaseBrowser.auth.getUser();
+        const user = userData.user;
 
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
-
-      if (typeof window !== "undefined") {
-        const params = new URLSearchParams(window.location.search);
-        const jobId = params.get("job_id");
-        const roleFromUrl = params.get("role");
-        const companyFromUrl = params.get("company");
-        const modeFromUrl = params.get("mode");
-
-        if (modeFromUrl === "multi") setMode("multi");
-
-        if (jobId) {
-          await loadJobContext(jobId);
-        } else if (roleFromUrl) {
-          setTargetRole(
-            companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
-          );
-          setCompanyName(companyFromUrl || "");
+        if (!user) {
+          window.location.href = "/login";
+          return;
         }
-      }
 
-      setUserId(user.id);
-      await loadSessions(user.id);
-      setLoading(false);
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const jobId = params.get("job_id");
+          const roleFromUrl = params.get("role");
+          const companyFromUrl = params.get("company");
+          const modeFromUrl = params.get("mode");
+
+          if (modeFromUrl === "multi") setMode("multi");
+
+          if (jobId) {
+            await loadJobContext(jobId);
+          } else if (roleFromUrl) {
+            setTargetRole(
+              companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
+            );
+            setCompanyName(companyFromUrl || "");
+          }
+        }
+
+        setUserId(user.id);
+
+        try {
+          await loadSessions(user.id);
+        } catch (sessionError) {
+          console.error("InterviewIQ sessions load error:", sessionError);
+        }
+      } catch (error) {
+        console.error("InterviewIQ Init Error:", error);
+        setMessage("InterviewIQ loaded with limited history. You can continue.");
+      } finally {
+        setLoading(false);
+      }
     }
 
     init();
   }, []);
+
 
   function resetInterview() {
     setQuestion("");
