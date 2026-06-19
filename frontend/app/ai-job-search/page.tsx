@@ -22,6 +22,7 @@ type SearchResult = {
   employment_type: string;
   salary_display: string;
   description: string;
+  original_job_url?: string;
   slug?: string;
   source: string;
   match_score: number;
