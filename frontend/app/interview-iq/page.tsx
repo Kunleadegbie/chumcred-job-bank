@@ -263,8 +263,7 @@ ${round.answer || "Not answered."}`
         user_id: userId,
         target_role: targetRole,
         company_name: companyName,
-        job_context: jobContext,
-        rounds: completedRounds,
+        job_context: jobContext,        
       }),
     });
 
@@ -369,6 +368,7 @@ ${round.answer || "Not answered."}`
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          user_id: userId,
           target_role: targetRole,
           company_name: companyName,
           job_context: jobContext,
