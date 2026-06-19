@@ -17,6 +17,12 @@ from app.services.resume_extractor import extract_resume_text
 from app.services.cv_reviewer import review_cv
 from app.services.interview_iq import generate_interview_question, review_interview_answer
 
+from app.services.ai_job_search import (
+    parse_ai_job_search_query,
+    job_matches_search,
+    normalize_search_result,
+)
+
 app = FastAPI(
     title="Chumcred Global Job Bank API",
     version="1.0.0"
@@ -435,6 +441,87 @@ async def interview_iq_analyze(payload: dict):
         return {
             "status": "completed",
             "analysis": result
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.post("/tasks/ai-job-search")
+async def ai_job_search(payload: dict):
+    try:
+        query = payload.get("query", "").strip()
+
+        if not query:
+            return {
+                "status": "error",
+                "message": "Query is required"
+            }
+
+        intent = parse_ai_job_search_query(query)
+
+        jobs_results = []
+
+        # ==================================
+        # Search Jobs Table
+        # ==================================
+
+        jobs_response = (
+            supabase.table("jobs")
+            .select("*")
+            .limit(500)
+            .execute()
+        )
+
+        jobs = jobs_response.data or []
+
+        for job in jobs:
+            if job_matches_search(job, intent):
+                jobs_results.append(
+                    normalize_search_result(
+                        job,
+                        intent,
+                        "Chumcred Jobs"
+                    )
+                )
+
+        # ==================================
+        # Search Employer Jobs
+        # ==================================
+
+        employer_response = (
+            supabase.table("employer_jobs")
+            .select("*")
+            .limit(500)
+            .execute()
+        )
+
+        employer_jobs = employer_response.data or []
+
+        for job in employer_jobs:
+            if job_matches_search(job, intent):
+                jobs_results.append(
+                    normalize_search_result(
+                        job,
+                        intent,
+                        "Employer Jobs"
+                    )
+                )
+
+        jobs_results = sorted(
+            jobs_results,
+            key=lambda x: x.get("match_score", 0),
+            reverse=True
+        )
+
+        return {
+            "status": "completed",
+            "query": query,
+            "intent": intent,
+            "count": len(jobs_results),
+            "results": jobs_results[:50]
         }
 
     except Exception as e:
