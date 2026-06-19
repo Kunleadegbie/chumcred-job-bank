@@ -567,6 +567,7 @@ def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=
     try:
         verify_cron_secret(x_cron_secret)
 
+        user_id = payload.get("user_id")
         target_role = payload.get("target_role") or "General"
         company_name = payload.get("company_name")
         job_context = payload.get("job_context") or None
@@ -579,12 +580,30 @@ def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=
             rounds=rounds,
         )
 
+        saved = False
+
+        if user_id:
+            supabase = get_supabase()
+
+            insert_response = supabase.table("multi_round_interview_sessions").insert({
+                "user_id": user_id,
+                "target_role": target_role,
+                "company_name": company_name,
+                "job_context": job_context,
+                "rounds": rounds,
+                "assessment": assessment,
+                "status": "completed",
+            }).execute()
+
+            saved = bool(insert_response.data)
+
         return {
             "status": "completed",
             "target_role": target_role,
             "company_name": company_name,
             "rounds": rounds,
             "assessment": assessment,
+            "saved": saved,
         }
 
     except Exception as e:
