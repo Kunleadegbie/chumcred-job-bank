@@ -464,6 +464,7 @@ def interview_iq_start_session(payload: dict, x_cron_secret: str = Header(defaul
     try:
         verify_cron_secret(x_cron_secret)
 
+        user_id = payload.get("user_id")
         target_role = payload.get("target_role") or "General"
         company_name = payload.get("company_name")
         job_context = payload.get("job_context") or None
@@ -474,6 +475,27 @@ def interview_iq_start_session(payload: dict, x_cron_secret: str = Header(defaul
             job_context=job_context,
         )
 
+        rounds = [
+            {
+                "round": 1,
+                "question": question,
+                "answer": "",
+            }
+        ]
+
+        if user_id:
+            supabase = get_supabase()
+            supabase.table("interview_iq_drafts").upsert({
+                "user_id": user_id,
+                "target_role": target_role,
+                "company_name": company_name,
+                "job_context": job_context,
+                "rounds": rounds,
+                "current_round": 1,
+                "status": "draft",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }, on_conflict="user_id").execute()
+
         return {
             "status": "completed",
             "round": 1,
@@ -482,20 +504,103 @@ def interview_iq_start_session(payload: dict, x_cron_secret: str = Header(defaul
             "company_name": company_name,
             "job_context": job_context,
             "question": question,
-            "rounds": [
-                {
-                    "round": 1,
-                    "question": question,
-                    "answer": "",
-                }
-            ],
+            "rounds": rounds,
         }
 
     except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/tasks/interview-iq/save-draft")
+def interview_iq_save_draft(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+        target_role = payload.get("target_role")
+        company_name = payload.get("company_name")
+        job_context = payload.get("job_context")
+        rounds = payload.get("rounds") or []
+        current_round = payload.get("current_round", 1)
+
+        if not user_id:
+            return {"status": "error", "message": "user_id is required"}
+
+        supabase = get_supabase()
+
+        existing = (
+            supabase.table("interview_iq_drafts")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("status", "draft")
+            .limit(1)
+            .execute()
+        )
+
+        if existing.data:
+            draft_id = existing.data[0]["id"]
+
+            supabase.table("interview_iq_drafts").update({
+                "target_role": target_role,
+                "company_name": company_name,
+                "job_context": job_context,
+                "rounds": rounds,
+                "current_round": current_round,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", draft_id).execute()
+        else:
+            inserted = (
+                supabase.table("interview_iq_drafts")
+                .insert({
+                    "user_id": user_id,
+                    "target_role": target_role,
+                    "company_name": company_name,
+                    "job_context": job_context,
+                    "rounds": rounds,
+                    "current_round": current_round,
+                    "status": "draft",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+                .execute()
+            )
+
+            draft_id = inserted.data[0]["id"]
+
+        return {"status": "completed", "draft_id": draft_id}
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/tasks/interview-iq/load-draft")
+def interview_iq_load_draft(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+
+        if not user_id:
+            return {"status": "error", "message": "user_id is required"}
+
+        supabase = get_supabase()
+
+        draft = (
+            supabase.table("interview_iq_drafts")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("status", "draft")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
         return {
-            "status": "error",
-            "message": str(e),
+            "status": "completed",
+            "draft": draft.data[0] if draft.data else None,
         }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.post("/tasks/interview-iq/next-question")
@@ -503,6 +608,7 @@ def interview_iq_next_question(payload: dict, x_cron_secret: str = Header(defaul
     try:
         verify_cron_secret(x_cron_secret)
 
+        user_id = payload.get("user_id")
         target_role = payload.get("target_role") or "General"
         company_name = payload.get("company_name")
         job_context = payload.get("job_context") or None
@@ -510,10 +616,7 @@ def interview_iq_next_question(payload: dict, x_cron_secret: str = Header(defaul
         answer = payload.get("answer") or ""
 
         if not rounds:
-            return {
-                "status": "error",
-                "message": "Previous rounds are required.",
-            }
+            return {"status": "error", "message": "Previous rounds are required."}
 
         current_round = len(rounds)
 
@@ -546,6 +649,17 @@ def interview_iq_next_question(payload: dict, x_cron_secret: str = Header(defaul
             "answer": "",
         })
 
+        if user_id:
+            supabase = get_supabase()
+            supabase.table("interview_iq_drafts").update({
+                "target_role": target_role,
+                "company_name": company_name,
+                "job_context": job_context,
+                "rounds": rounds,
+                "current_round": next_round_number,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("user_id", user_id).eq("status", "draft").execute()
+
         return {
             "status": "completed",
             "finished": False,
@@ -556,10 +670,7 @@ def interview_iq_next_question(payload: dict, x_cron_secret: str = Header(defaul
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-        }
+        return {"status": "error", "message": str(e)}
 
 
 @app.post("/tasks/interview-iq/end-session")
@@ -597,6 +708,11 @@ def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=
 
             saved = bool(insert_response.data)
 
+            supabase.table("interview_iq_drafts").update({
+                "status": "completed",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("user_id", user_id).eq("status", "draft").execute()
+
         return {
             "status": "completed",
             "target_role": target_role,
@@ -607,11 +723,7 @@ def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
+        return {"status": "error", "message": str(e)}
 
 @app.post("/tasks/ai-job-search")
 async def ai_job_search(
