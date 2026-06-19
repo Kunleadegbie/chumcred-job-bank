@@ -227,14 +227,21 @@ export default function AIJobSearchPage() {
               {job.slug ? (
                 <Link
                   href={`/jobs/${job.slug}`}
-                  className="rounded-xl bg-blue-600 px-4 py-3 text-center font-semibold text-white hover:bg-blue-700"
-                >
+                  className="rounded-xl bg-blue-600 px-4 py-3 text-center font-semibold text-white hover:bg-blue-700">
                   View Job
                 </Link>
+              ) : job.original_job_url ? (
+                <a
+                  href={job.original_job_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl bg-blue-600 px-4 py-3 text-center font-semibold text-white hover:bg-blue-700">
+                  View Job
+                </a>
               ) : (
                 <button
-                  className="rounded-xl bg-slate-300 px-4 py-3 font-semibold text-slate-700"
-                >
+                  disabled
+                  className="rounded-xl bg-slate-300 px-4 py-3 font-semibold text-slate-700">
                   View Job
                 </button>
               )}
