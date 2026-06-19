@@ -262,7 +262,9 @@ ${round.answer || "Not answered."}`
       body: JSON.stringify({
         user_id: userId,
         target_role: targetRole,
+        company_name: companyName,
         job_context: jobContext,
+        rounds: completedRounds,
       }),
     });
 
