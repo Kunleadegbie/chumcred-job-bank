@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Brain, Send, Sparkles } from "lucide-react";
+import { Brain, Send, Sparkles, RotateCcw, Trophy } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type InterviewSession = {
@@ -24,15 +24,43 @@ type JobContext = {
   responsibilities: string | null;
 };
 
+type InterviewRound = {
+  round: number;
+  question: string;
+  answer: string;
+};
+
+type FinalAssessment = {
+  overall_score?: number;
+  communication_score?: number;
+  technical_score?: number;
+  confidence_score?: number;
+  problem_solving_score?: number;
+  role_fit_score?: number;
+  recommendation?: string;
+  strengths?: string;
+  improvements?: string;
+  final_feedback?: string;
+};
+
 export default function InterviewIQPage() {
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
+  const [companyName, setCompanyName] = useState("");
   const [jobContext, setJobContext] = useState<JobContext | null>(null);
+  const [mode, setMode] = useState<"single" | "multi">("single");
 
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
   const [score, setScore] = useState<number | null>(null);
+
+  const [rounds, setRounds] = useState<InterviewRound[]>([]);
+  const [currentRound, setCurrentRound] = useState(0);
+  const [maxRounds, setMaxRounds] = useState(5);
+  const [finalAssessment, setFinalAssessment] =
+    useState<FinalAssessment | null>(null);
+
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -40,42 +68,33 @@ export default function InterviewIQPage() {
   const [message, setMessage] = useState("");
 
   async function loadSessions(currentUserId: string) {
-    const { data, error } = await supabaseBrowser
+    const { data } = await supabaseBrowser
       .from("interview_iq_sessions")
       .select("id,target_role,question,user_answer,feedback,score,created_at")
       .eq("user_id", currentUserId)
       .order("created_at", { ascending: false })
       .limit(10);
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
     setSessions((data || []) as InterviewSession[]);
   }
 
   async function loadJobContext(jobId: string) {
-    const { data, error } = await supabaseBrowser
+    const { data } = await supabaseBrowser
       .from("jobs")
       .select("id,title,company_name,description,requirements,responsibilities")
       .eq("id", jobId)
       .maybeSingle();
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
     if (data) {
       const job = data as JobContext;
       setJobContext(job);
+      setCompanyName(job.company_name || "");
 
-      const roleText = job.company_name
-        ? `${job.title || "Job"} at ${job.company_name}`
-        : job.title || "Job Interview";
-
-      setTargetRole(roleText);
+      setTargetRole(
+        job.company_name
+          ? `${job.title || "Job"} at ${job.company_name}`
+          : job.title || "Job Interview"
+      );
     }
   }
 
@@ -91,10 +110,12 @@ export default function InterviewIQPage() {
 
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
-
         const jobId = params.get("job_id");
         const roleFromUrl = params.get("role");
         const companyFromUrl = params.get("company");
+        const modeFromUrl = params.get("mode");
+
+        if (modeFromUrl === "multi") setMode("multi");
 
         if (jobId) {
           await loadJobContext(jobId);
@@ -102,6 +123,7 @@ export default function InterviewIQPage() {
           setTargetRole(
             companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
           );
+          setCompanyName(companyFromUrl || "");
         }
       }
 
@@ -113,7 +135,18 @@ export default function InterviewIQPage() {
     init();
   }, []);
 
-  async function startInterview() {
+  function resetInterview() {
+    setQuestion("");
+    setAnswer("");
+    setFeedback("");
+    setScore(null);
+    setRounds([]);
+    setCurrentRound(0);
+    setFinalAssessment(null);
+    setMessage("");
+  }
+
+  async function startSingleInterview() {
     if (!userId || !targetRole.trim()) return;
 
     setStarting(true);
@@ -123,36 +156,29 @@ export default function InterviewIQPage() {
     setFeedback("");
     setScore(null);
 
-    try {
-      const response = await fetch("/api/interview-iq/question", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          target_role: targetRole,
-          job_context: jobContext,
-        }),
-      });
+    const response = await fetch("/api/interview-iq/question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        target_role: targetRole,
+        job_context: jobContext,
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok || data.status === "error") {
-        setMessage(data.message || data.error || "Unable to generate question.");
-        setStarting(false);
-        return;
-      }
-
-      setQuestion(data.question || "");
-    } catch {
-      setMessage("Unable to reach InterviewIQ question service.");
+    if (!response.ok || data.status === "error") {
+      setMessage(data.message || data.error || "Unable to generate question.");
+      setStarting(false);
+      return;
     }
 
+    setQuestion(data.question || "");
     setStarting(false);
   }
 
-  async function submitAnswer() {
+  async function submitSingleAnswer() {
     if (!userId || !targetRole || !question || !answer.trim()) {
       setMessage("Please enter your answer before submitting.");
       return;
@@ -160,39 +186,134 @@ export default function InterviewIQPage() {
 
     setReviewing(true);
     setMessage("");
-    setFeedback("");
-    setScore(null);
 
-    try {
-      const response = await fetch("/api/interview-iq/review", {
+    const response = await fetch("/api/interview-iq/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        target_role: targetRole,
+        question,
+        answer,
+        job_context: jobContext,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.status === "error") {
+      setMessage(data.message || data.error || "Unable to review answer.");
+      setReviewing(false);
+      return;
+    }
+
+    setFeedback(data.review?.feedback || "");
+    setScore(data.review?.score || 0);
+    await loadSessions(userId);
+    setReviewing(false);
+  }
+
+  async function startMultiRoundInterview() {
+    if (!targetRole.trim()) return;
+
+    setStarting(true);
+    setMessage("");
+    setAnswer("");
+    setRounds([]);
+    setFinalAssessment(null);
+
+    const response = await fetch("/api/interview-iq/start-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target_role: targetRole,
+        company_name: companyName,
+        job_context: jobContext,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.status === "error") {
+      setMessage(data.message || data.error || "Unable to start interview.");
+      setStarting(false);
+      return;
+    }
+
+    setQuestion(data.question || "");
+    setRounds(data.rounds || []);
+    setCurrentRound(data.round || 1);
+    setMaxRounds(data.max_rounds || 5);
+    setStarting(false);
+  }
+
+  async function submitMultiRoundAnswer() {
+    if (!answer.trim()) {
+      setMessage("Please enter your answer before moving to the next round.");
+      return;
+    }
+
+    setReviewing(true);
+    setMessage("");
+
+    if (currentRound >= maxRounds) {
+      const completedRounds = [...rounds];
+      completedRounds[completedRounds.length - 1] = {
+        ...completedRounds[completedRounds.length - 1],
+        answer,
+      };
+
+      const response = await fetch("/api/interview-iq/end-session", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           target_role: targetRole,
-          question,
-          answer,
+          company_name: companyName,
           job_context: jobContext,
+          rounds: completedRounds,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok || data.status === "error") {
-        setMessage(data.message || data.error || "Unable to review answer.");
+        setMessage(data.message || data.error || "Unable to end interview.");
         setReviewing(false);
         return;
       }
 
-      setFeedback(data.review?.feedback || "");
-      setScore(data.review?.score || 0);
-      await loadSessions(userId);
-    } catch {
-      setMessage("Unable to reach InterviewIQ review service.");
+      setRounds(completedRounds);
+      setFinalAssessment(data.assessment || null);
+      setQuestion("");
+      setAnswer("");
+      setReviewing(false);
+      return;
     }
 
+    const response = await fetch("/api/interview-iq/next-question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target_role: targetRole,
+        company_name: companyName,
+        job_context: jobContext,
+        rounds,
+        answer,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.status === "error") {
+      setMessage(data.message || data.error || "Unable to generate next question.");
+      setReviewing(false);
+      return;
+    }
+
+    setRounds(data.rounds || []);
+    setCurrentRound(data.round || currentRound + 1);
+    setQuestion(data.question || "");
+    setAnswer("");
     setReviewing(false);
   }
 
@@ -226,8 +347,7 @@ export default function InterviewIQPage() {
             </h1>
 
             <p className="mt-3 max-w-3xl text-slate-300">
-              Prepare for real interviews by answering AI-generated questions
-              based on your target role and career profile.
+              Choose single-question practice or a premium multi-round adaptive interview.
             </p>
 
             <Link
@@ -257,15 +377,45 @@ export default function InterviewIQPage() {
           <p className="mt-1 text-slate-700">
             {jobContext.company_name || "Company not stated"}
           </p>
-          <p className="mt-3 text-sm text-slate-600">
-            InterviewIQ will use this job context to prepare more relevant
-            interview questions.
-          </p>
         </section>
       )}
 
+      <section className="mt-8 rounded-3xl border bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-bold text-slate-900">Interview Mode</h2>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            onClick={() => {
+              resetInterview();
+              setMode("single");
+            }}
+            className={`rounded-xl px-5 py-3 font-semibold ${
+              mode === "single"
+                ? "bg-blue-600 text-white"
+                : "border text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            Single InterviewIQ
+          </button>
+
+          <button
+            onClick={() => {
+              resetInterview();
+              setMode("multi");
+            }}
+            className={`rounded-xl px-5 py-3 font-semibold ${
+              mode === "multi"
+                ? "bg-slate-900 text-white"
+                : "border text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            Multi-Round InterviewIQ
+          </button>
+        </div>
+      </section>
+
       <section className="mt-8 grid gap-6 lg:grid-cols-3">
-        <div className="rounded-3xl border bg-white p-6 shadow-sm lg:col-span-1">
+        <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-900">Interview Setup</h2>
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">
@@ -275,27 +425,52 @@ export default function InterviewIQPage() {
           <input
             value={targetRole}
             onChange={(e) => setTargetRole(e.target.value)}
-            placeholder="Example: Business Analyst"
             className="mt-2 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
           />
 
+          {mode === "multi" && (
+            <>
+              <label className="mt-5 block text-sm font-semibold text-slate-700">
+                Company Name
+              </label>
+
+              <input
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Example: Access Bank"
+                className="mt-2 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
+              />
+            </>
+          )}
+
           <button
-            onClick={startInterview}
+            onClick={mode === "single" ? startSingleInterview : startMultiRoundInterview}
             disabled={starting}
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           >
             <Sparkles size={18} />
-            {starting ? "Generating Question..." : "Start Interview"}
+            {starting
+              ? "Starting..."
+              : mode === "single"
+              ? "Start Interview"
+              : "Start Multi-Round Interview"}
           </button>
 
-          <div className="mt-6 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
-            Tip: Use a role title close to the job you are applying for, such as
-            Product Manager, Data Analyst, Project Manager or Sales Executive.
-          </div>
+          <button
+            onClick={resetInterview}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <RotateCcw size={18} />
+            Reset
+          </button>
         </div>
 
         <div className="rounded-3xl border bg-white p-6 shadow-sm lg:col-span-2">
-          <h2 className="text-xl font-bold text-slate-900">Current Question</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            {mode === "multi"
+              ? `Question ${currentRound || 1} of ${maxRounds}`
+              : "Current Question"}
+          </h2>
 
           {question ? (
             <>
@@ -313,50 +488,48 @@ export default function InterviewIQPage() {
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
                 rows={7}
-                placeholder="Type your interview answer here. Try to use Situation, Action and Result."
+                placeholder="Type your interview answer here."
                 className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none focus:border-blue-600"
               />
 
               <button
-                onClick={submitAnswer}
+                onClick={
+                  mode === "single" ? submitSingleAnswer : submitMultiRoundAnswer
+                }
                 disabled={reviewing}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 <Send size={18} />
-                {reviewing ? "Reviewing Answer..." : "Submit Answer"}
+                {reviewing
+                  ? "Processing..."
+                  : mode === "single"
+                  ? "Submit Answer"
+                  : currentRound >= maxRounds
+                  ? "Finish Interview"
+                  : "Submit & Continue"}
               </button>
             </>
+          ) : finalAssessment ? (
+            <div className="mt-5 rounded-2xl bg-green-50 p-6 text-green-800">
+              Interview completed. See final assessment below.
+            </div>
           ) : (
             <div className="mt-5 rounded-2xl border border-dashed p-8 text-center text-slate-600">
-              Enter a target role and click “Start Interview” to generate your
-              first interview question.
+              Start an interview to generate your first question.
             </div>
           )}
         </div>
       </section>
 
-      {feedback && (
+      {feedback && mode === "single" && (
         <section className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
             AI Interview Feedback
           </p>
 
-          <div className="mt-5 flex items-center gap-5">
-            <div className="rounded-3xl bg-blue-50 px-8 py-6 text-center text-blue-700">
-              <p className="text-5xl font-bold">{score || 0}</p>
-              <p className="mt-1 text-sm font-semibold">Score</p>
-            </div>
-
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">
-                Feedback Summary
-              </h2>
-              <p className="mt-2 text-slate-600">
-                Review your strengths and improvement areas before your real
-                interview.
-              </p>
-            </div>
-          </div>
+          <h2 className="mt-2 text-3xl font-bold text-slate-900">
+            Score: {score || 0}
+          </h2>
 
           <div className="mt-6 rounded-2xl bg-slate-50 p-5">
             <p className="whitespace-pre-line text-sm leading-7 text-slate-700">
@@ -366,61 +539,113 @@ export default function InterviewIQPage() {
         </section>
       )}
 
-      <section className="mt-10">
-        <h2 className="text-2xl font-bold text-slate-900">
-          Previous Interview Practice
-        </h2>
+      {rounds.length > 0 && mode === "multi" && (
+        <section className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Interview Rounds
+          </h2>
 
-        {sessions.length === 0 ? (
-          <div className="mt-5 rounded-3xl border bg-white p-6 text-slate-600 shadow-sm">
-            No interview practice history yet.
+          <div className="mt-5 space-y-4">
+            {rounds.map((round) => (
+              <div key={round.round} className="rounded-2xl bg-slate-50 p-5">
+                <p className="text-sm font-semibold text-blue-700">
+                  Round {round.round}
+                </p>
+                <p className="mt-2 font-semibold text-slate-900">
+                  {round.question}
+                </p>
+                {round.answer && (
+                  <p className="mt-3 text-sm text-slate-600">
+                    {round.answer}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-        ) : (
+        </section>
+      )}
+
+      {finalAssessment && (
+        <section className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Trophy className="text-amber-600" />
+            <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+              Final Interview Assessment
+            </p>
+          </div>
+
+          <h2 className="mt-3 text-4xl font-bold text-slate-900">
+            Overall Score: {finalAssessment.overall_score || 0}%
+          </h2>
+
+          <p className="mt-3 text-lg font-semibold text-slate-700">
+            Recommendation: {finalAssessment.recommendation || "Not available"}
+          </p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-5">
+            <ScoreBox title="Communication" value={finalAssessment.communication_score} />
+            <ScoreBox title="Technical" value={finalAssessment.technical_score} />
+            <ScoreBox title="Confidence" value={finalAssessment.confidence_score} />
+            <ScoreBox title="Problem Solving" value={finalAssessment.problem_solving_score} />
+            <ScoreBox title="Role Fit" value={finalAssessment.role_fit_score} />
+          </div>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            <TextBox title="Strengths" content={finalAssessment.strengths} />
+            <TextBox title="Improvements" content={finalAssessment.improvements} />
+            <TextBox title="Final Feedback" content={finalAssessment.final_feedback} />
+          </div>
+        </section>
+      )}
+
+      {sessions.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Previous Interview Practice
+          </h2>
+
           <div className="mt-5 space-y-4">
             {sessions.map((session) => (
               <div
                 key={session.id}
                 className="rounded-3xl border bg-white p-6 shadow-sm"
               >
-                <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
-                      {session.target_role || "Interview Practice"}
-                    </p>
+                <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+                  {session.target_role || "Interview Practice"}
+                </p>
 
-                    <h3 className="mt-2 text-lg font-bold text-slate-900">
-                      {session.question}
-                    </h3>
+                <h3 className="mt-2 text-lg font-bold text-slate-900">
+                  {session.question}
+                </h3>
 
-                    <p className="mt-2 text-sm text-slate-500">
-                      {session.created_at
-                        ? new Date(session.created_at).toLocaleString()
-                        : ""}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-blue-50 px-5 py-3 text-center text-blue-700">
-                    <p className="text-2xl font-bold">{session.score || 0}</p>
-                    <p className="text-xs font-semibold">Score</p>
-                  </div>
-                </div>
-
-                {session.feedback && (
-                  <details className="mt-4">
-                    <summary className="cursor-pointer text-sm font-semibold text-blue-700">
-                      View feedback
-                    </summary>
-
-                    <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-700">
-                      {session.feedback}
-                    </p>
-                  </details>
-                )}
+                <p className="mt-2 text-sm text-slate-500">
+                  Score: {session.score || 0}
+                </p>
               </div>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </main>
+  );
+}
+
+function ScoreBox({ title, value }: { title: string; value?: number }) {
+  return (
+    <div className="rounded-2xl bg-blue-50 p-4 text-center text-blue-700">
+      <p className="text-2xl font-bold">{value || 0}</p>
+      <p className="mt-1 text-xs font-semibold">{title}</p>
+    </div>
+  );
+}
+
+function TextBox({ title, content }: { title: string; content?: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-5">
+      <h3 className="font-bold text-slate-900">{title}</h3>
+      <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-700">
+        {content || "Not available."}
+      </p>
+    </div>
   );
 }
