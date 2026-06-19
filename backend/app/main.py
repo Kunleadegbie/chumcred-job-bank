@@ -25,6 +25,14 @@ from app.services.ai_job_search import (
     search_adzuna_jobs,
 )
 
+from app.services.interview_session import (
+    MAX_ROUNDS,
+    generate_first_question,
+    generate_follow_up_question,
+    generate_final_assessment,
+)
+
+
 app = FastAPI(
     title="Chumcred Global Job Bank API",
     version="1.0.0"
@@ -450,6 +458,141 @@ async def interview_iq_analyze(payload: dict):
             "status": "error",
             "message": str(e)
         }
+
+@app.post("/tasks/interview-iq/start-session")
+def interview_iq_start_session(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        target_role = payload.get("target_role") or "General"
+        company_name = payload.get("company_name")
+        job_context = payload.get("job_context") or None
+
+        question = generate_first_question(
+            target_role=target_role,
+            company_name=company_name,
+            job_context=job_context,
+        )
+
+        return {
+            "status": "completed",
+            "round": 1,
+            "max_rounds": MAX_ROUNDS,
+            "target_role": target_role,
+            "company_name": company_name,
+            "job_context": job_context,
+            "question": question,
+            "rounds": [
+                {
+                    "round": 1,
+                    "question": question,
+                    "answer": "",
+                }
+            ],
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+        }
+
+
+@app.post("/tasks/interview-iq/next-question")
+def interview_iq_next_question(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        target_role = payload.get("target_role") or "General"
+        company_name = payload.get("company_name")
+        job_context = payload.get("job_context") or None
+        rounds = payload.get("rounds") or []
+        answer = payload.get("answer") or ""
+
+        if not rounds:
+            return {
+                "status": "error",
+                "message": "Previous rounds are required.",
+            }
+
+        current_round = len(rounds)
+
+        if current_round >= MAX_ROUNDS:
+            return {
+                "status": "completed",
+                "finished": True,
+                "message": "Maximum interview rounds reached.",
+                "rounds": rounds,
+            }
+
+        last_round = rounds[-1]
+        last_round["answer"] = answer
+
+        next_round_number = current_round + 1
+
+        next_question = generate_follow_up_question(
+            target_role=target_role,
+            previous_question=last_round.get("question", ""),
+            candidate_answer=answer,
+            round_number=next_round_number,
+            company_name=company_name,
+            job_context=job_context,
+            previous_rounds=rounds,
+        )
+
+        rounds.append({
+            "round": next_round_number,
+            "question": next_question,
+            "answer": "",
+        })
+
+        return {
+            "status": "completed",
+            "finished": False,
+            "round": next_round_number,
+            "max_rounds": MAX_ROUNDS,
+            "question": next_question,
+            "rounds": rounds,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+        }
+
+
+@app.post("/tasks/interview-iq/end-session")
+def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        target_role = payload.get("target_role") or "General"
+        company_name = payload.get("company_name")
+        job_context = payload.get("job_context") or None
+        rounds = payload.get("rounds") or []
+
+        assessment = generate_final_assessment(
+            target_role=target_role,
+            company_name=company_name,
+            job_context=job_context,
+            rounds=rounds,
+        )
+
+        return {
+            "status": "completed",
+            "target_role": target_role,
+            "company_name": company_name,
+            "rounds": rounds,
+            "assessment": assessment,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+        }
+
 
 @app.post("/tasks/ai-job-search")
 async def ai_job_search(
