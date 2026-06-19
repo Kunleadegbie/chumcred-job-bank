@@ -460,6 +460,8 @@ async def ai_job_search(payload: dict):
                 "message": "Query is required"
             }
 
+        supabase = get_supabase()
+
         intent = parse_ai_job_search_query(query)
 
         jobs_results = []
