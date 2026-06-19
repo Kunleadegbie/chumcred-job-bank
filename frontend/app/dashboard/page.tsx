@@ -224,6 +224,11 @@ export default function DashboardPage() {
             className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
             InterviewIQ
           </Link>
+          <Link
+            href="/ai-job-search"
+            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
+            AI Global Job Search
+          </Link>
         </div>
       </section>
     </main>
