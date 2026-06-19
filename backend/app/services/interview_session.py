@@ -4,7 +4,6 @@ from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
 MAX_ROUNDS = 5
 
 
@@ -36,6 +35,21 @@ Responsibilities:
 """
 
 
+def clean_json_response(content: str) -> str:
+    content = (content or "").strip()
+
+    if content.startswith("```json"):
+        content = content.replace("```json", "", 1).strip()
+
+    if content.startswith("```"):
+        content = content.replace("```", "", 1).strip()
+
+    if content.endswith("```"):
+        content = content[:-3].strip()
+
+    return content
+
+
 def generate_first_question(
     target_role: str,
     company_name: str | None = None,
@@ -62,12 +76,7 @@ Return only the question.
         model="gpt-4.1-mini",
         temperature=0.7,
         max_tokens=120,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
+        messages=[{"role": "user", "content": prompt}],
     )
 
     return response.choices[0].message.content.strip()
@@ -119,12 +128,7 @@ Return only ONE next interview question.
         model="gpt-4.1-mini",
         temperature=0.75,
         max_tokens=150,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
+        messages=[{"role": "user", "content": prompt}],
     )
 
     return response.choices[0].message.content.strip()
@@ -150,7 +154,14 @@ Interview Context:
 Interview Rounds:
 {json.dumps(rounds, ensure_ascii=False)}
 
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON.
+
+Do not use markdown.
+Do not use code fences.
+Do not explain.
+Do not wrap the JSON in ```json.
+
+Required JSON format:
 
 {{
   "overall_score": 0,
@@ -168,30 +179,26 @@ Return ONLY valid JSON in this format:
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
-        temperature=0.3,
+        temperature=0.2,
         max_tokens=700,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
+        messages=[{"role": "user", "content": prompt}],
     )
 
     content = response.choices[0].message.content.strip()
+    cleaned_content = clean_json_response(content)
 
     try:
-      return json.loads(content)
+        return json.loads(cleaned_content)
     except Exception:
-      return {
-          "overall_score": 0,
-          "communication_score": 0,
-          "technical_score": 0,
-          "confidence_score": 0,
-          "problem_solving_score": 0,
-          "role_fit_score": 0,
-          "recommendation": "Assessment could not be parsed.",
-          "strengths": "",
-          "improvements": "",
-          "final_feedback": content,
-      }
+        return {
+            "overall_score": 0,
+            "communication_score": 0,
+            "technical_score": 0,
+            "confidence_score": 0,
+            "problem_solving_score": 0,
+            "role_fit_score": 0,
+            "recommendation": "Assessment could not be parsed.",
+            "strengths": "",
+            "improvements": "",
+            "final_feedback": cleaned_content,
+        }
