@@ -21,6 +21,8 @@ from app.services.ai_job_search import (
     parse_ai_job_search_query,
     job_matches_search,
     normalize_search_result,
+    search_jsearch_jobs,
+    search_adzuna_jobs,
 )
 
 app = FastAPI(
@@ -450,8 +452,13 @@ async def interview_iq_analyze(payload: dict):
         }
 
 @app.post("/tasks/ai-job-search")
-async def ai_job_search(payload: dict):
+async def ai_job_search(
+    payload: dict,
+    x_cron_secret: str = Header(default=None)
+):
     try:
+        verify_cron_secret(x_cron_secret)
+
         query = payload.get("query", "").strip()
 
         if not query:
@@ -511,6 +518,13 @@ async def ai_job_search(payload: dict):
                         "Employer Jobs"
                     )
                 )
+
+        external_results = []
+
+        external_results.extend(search_jsearch_jobs(intent, 20))
+        external_results.extend(search_adzuna_jobs(intent, 20))
+
+        jobs_results.extend(external_results)
 
         jobs_results = sorted(
             jobs_results,

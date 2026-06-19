@@ -1,6 +1,7 @@
 import os
 import json
 from openai import OpenAI
+import requests
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -182,3 +183,181 @@ def normalize_search_result(job: dict, intent: dict, source: str = "Chumcred Job
         "source": source,
         "match_score": rank_job(job, intent),
     }
+
+def search_jsearch_jobs(intent: dict, limit: int = 20) -> list[dict]:
+    api_key = os.getenv("JSEARCH_API_KEY")
+
+    if not api_key:
+        return []
+
+    role = intent.get("role") or "jobs"
+    country = intent.get("country") or ""
+    city = intent.get("city") or ""
+    remote = bool(intent.get("remote"))
+
+    query_parts = [role]
+
+    if remote:
+        query_parts.append("remote")
+
+    if city:
+        query_parts.append(city)
+
+    if country:
+        query_parts.append(country)
+
+    query = " ".join(query_parts)
+
+    try:
+        response = requests.get(
+            "https://jsearch.p.rapidapi.com/search",
+            headers={
+                "X-RapidAPI-Key": api_key,
+                "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+            },
+            params={
+                "query": query,
+                "page": "1",
+                "num_pages": "1",
+            },
+            timeout=20,
+        )
+
+        response.raise_for_status()
+        payload = response.json()
+        jobs = payload.get("data") or []
+
+        results = []
+
+        for job in jobs[:limit]:
+            item = {
+                "id": job.get("job_id"),
+                "title": job.get("job_title"),
+                "company_name": job.get("employer_name"),
+                "country": job.get("job_country") or country,
+                "city": job.get("job_city") or "",
+                "location_display": job.get("job_location") or job.get("job_country") or "",
+                "work_type": "remote" if job.get("job_is_remote") else "",
+                "employment_type": job.get("job_employment_type") or "",
+                "description": job.get("job_description") or "",
+                "requirements": "",
+                "responsibilities": "",
+                "benefits": "",
+                "salary_display": "",
+                "original_job_url": job.get("job_apply_link") or "",
+                "slug": None,
+            }
+
+            results.append(
+                normalize_search_result(
+                    item,
+                    intent,
+                    "JSearch"
+                )
+            )
+
+        return results
+
+    except Exception as e:
+        print(f"JSearch error: {e}")
+        return []
+
+
+def get_adzuna_country_code(country: str) -> str:
+    mapping = {
+        "united kingdom": "gb",
+        "uk": "gb",
+        "great britain": "gb",
+        "canada": "ca",
+        "united states": "us",
+        "usa": "us",
+        "us": "us",
+        "australia": "au",
+        "germany": "de",
+        "france": "fr",
+        "netherlands": "nl",
+        "india": "in",
+        "singapore": "sg",
+        "south africa": "za",
+        "brazil": "br",
+        "nigeria": "ng",
+    }
+
+    return mapping.get((country or "").lower(), "gb")
+
+
+def search_adzuna_jobs(intent: dict, limit: int = 20) -> list[dict]:
+    app_id = os.getenv("ADZUNA_APP_ID")
+    app_key = os.getenv("ADZUNA_APP_KEY")
+
+    if not app_id or not app_key:
+        return []
+
+    role = intent.get("role") or "jobs"
+    country = intent.get("country") or "United Kingdom"
+    city = intent.get("city") or ""
+    country_code = get_adzuna_country_code(country)
+
+    try:
+        response = requests.get(
+            f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1",
+            params={
+                "app_id": app_id,
+                "app_key": app_key,
+                "results_per_page": limit,
+                "what": role,
+                "where": city or country,
+                "content-type": "application/json",
+            },
+            timeout=20,
+        )
+
+        response.raise_for_status()
+        payload = response.json()
+        jobs = payload.get("results") or []
+
+        results = []
+
+        for job in jobs[:limit]:
+            location_area = job.get("location", {}).get("area") or []
+            location_display = ", ".join(location_area) if location_area else ""
+
+            salary_min = job.get("salary_min")
+            salary_max = job.get("salary_max")
+
+            if salary_min and salary_max:
+                salary_display = f"{salary_min:,.0f} - {salary_max:,.0f}"
+            else:
+                salary_display = ""
+
+            item = {
+                "id": job.get("id"),
+                "title": job.get("title"),
+                "company_name": job.get("company", {}).get("display_name"),
+                "country": country,
+                "city": city,
+                "location_display": location_display or country,
+                "work_type": "",
+                "employment_type": "",
+                "description": job.get("description") or "",
+                "requirements": "",
+                "responsibilities": "",
+                "benefits": "",
+                "salary_display": salary_display,
+                "original_job_url": job.get("redirect_url") or "",
+                "slug": None,
+            }
+
+            results.append(
+                normalize_search_result(
+                    item,
+                    intent,
+                    "Adzuna"
+                )
+            )
+
+        return results
+
+    except Exception as e:
+        print(f"Adzuna error: {e}")
+        return []
