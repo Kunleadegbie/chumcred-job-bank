@@ -7,6 +7,7 @@ from app.services.career_coach import generate_career_advice
 from fastapi import UploadFile, File, Form
 from app.services.transcription_service import transcribe_audio_file
 from app.services.interview_iq_analyzer import analyze_interview
+from app.services.ai_match_score import generate_ai_match_score
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -812,6 +813,50 @@ async def ai_job_search(
             "intent": intent,
             "count": len(jobs_results),
             "results": jobs_results[:50]
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.post("/tasks/ai-match-score")
+def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        resume_text = payload.get("resume_text") or ""
+        job_title = payload.get("job_title") or ""
+        company_name = payload.get("company_name") or ""
+        job_description = payload.get("job_description") or ""
+        job_requirements = payload.get("job_requirements") or ""
+        job_responsibilities = payload.get("job_responsibilities") or ""
+
+        if not resume_text.strip():
+            return {
+                "status": "error",
+                "message": "resume_text is required"
+            }
+
+        if not job_description.strip() and not job_title.strip():
+            return {
+                "status": "error",
+                "message": "job_title or job_description is required"
+            }
+
+        result = generate_ai_match_score(
+            resume_text=resume_text,
+            job_title=job_title,
+            company_name=company_name,
+            job_description=job_description,
+            job_requirements=job_requirements,
+            job_responsibilities=job_responsibilities,
+        )
+
+        return {
+            "status": "completed",
+            "match": result
         }
 
     except Exception as e:
