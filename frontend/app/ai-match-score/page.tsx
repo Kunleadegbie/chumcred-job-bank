@@ -39,32 +39,42 @@ export default function AIMatchScorePage() {
   const [message, setMessage] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
 
-  async function loadLatestSavedMatch(currentUserId: string, jobId: string) {
+  async function loadLatestSavedMatch(
+    currentUserId: string,
+    jobId: string
+  ) {
     if (!currentUserId || !jobId) return;
 
-    setMessage("");
-
-    const response = await fetch("/api/ai-match-history", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: currentUserId, job_id: jobId }),
+    try {
+      const response = await fetch("/api/ai-match-history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: currentUserId,
+        job_id: jobId,
+      }),
+      cache: "no-store",
     });
 
     const data = await response.json();
 
     if (!response.ok || data.status === "error") {
-      setMessage(data.message || data.error || "Unable to load saved match result.");
       return;
     }
 
     const latest = (data.history || [])[0];
 
     if (latest?.result) {
-      setMatch(latest.result as MatchResult);
+      setMatch({ ...latest.result });
     } else {
       setMatch(null);
     }
+  } catch (error) {
+    console.error(error);
   }
+}
 
   useEffect(() => {
     async function init() {
@@ -130,7 +140,7 @@ export default function AIMatchScorePage() {
     }
 
     init();
-  }, []);
+  }, [selectedJobId]);
 
   async function handleJobSelect(jobId: string) {
     setSelectedJobId(jobId);
@@ -186,7 +196,18 @@ export default function AIMatchScorePage() {
     }
 
     setMatch(data.match || null);
-    window.history.replaceState(null, "", `/ai-match-score?job_id=${selectedJob.id}`);
+
+    window.history.replaceState(
+      null,
+      "",
+      `/ai-match-score?job_id=${selectedJob.id}`
+    );
+
+    /*
+    * Force reload latest saved result
+    * from database immediately after save.
+    */
+    await loadLatestSavedMatch(userId, selectedJob.id);
 
     setAnalyzing(false);
   }
