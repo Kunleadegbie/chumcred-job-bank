@@ -30,6 +30,7 @@ type MatchResult = {
 
 export default function AIMatchScorePage() {
   const [resumeText, setResumeText] = useState("");
+  const [userId, setUserId] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -48,6 +49,8 @@ export default function AIMatchScorePage() {
         window.location.href = "/login";
         return;
       }
+  
+      setUserId(user.id);
 
       const params = new URLSearchParams(window.location.search);
       const jobIdFromUrl = params.get("job_id") || "";
