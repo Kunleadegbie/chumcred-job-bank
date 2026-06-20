@@ -28,19 +28,12 @@ type MatchResult = {
   improvement_actions: string[];
 };
 
-type MatchHistory = {
-  id: string;
-  job_id: string | null;
-  result: MatchResult | null;
-};
-
 export default function AIMatchScorePage() {
   const [resumeText, setResumeText] = useState("");
   const [userId, setUserId] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState("");
@@ -50,72 +43,54 @@ export default function AIMatchScorePage() {
     return `ai_match_score_${currentUserId}_${jobId}`;
   }
 
-  function saveMatchToBrowser(
-    currentUserId: string,
-    jobId: string,
-    result: MatchResult
-  ) {
+  function saveMatchToBrowser(currentUserId: string, jobId: string, result: MatchResult) {
     if (!currentUserId || !jobId || !result) return;
-
-    sessionStorage.setItem(
-      getMatchStorageKey(currentUserId, jobId),
-      JSON.stringify(result)
-    );
+    sessionStorage.setItem(getMatchStorageKey(currentUserId, jobId), JSON.stringify(result));
   }
 
-  function restoreMatchFromBrowser(
-    currentUserId: string,
-    jobId: string
-  ): boolean {
+  function restoreMatchFromBrowser(currentUserId: string, jobId: string): boolean {
     if (!currentUserId || !jobId) return false;
-
-    const saved = sessionStorage.getItem(
-      getMatchStorageKey(currentUserId, jobId)
-    );
-
+    const saved = sessionStorage.getItem(getMatchStorageKey(currentUserId, jobId));
     if (!saved) return false;
 
     try {
-      const parsed = JSON.parse(saved) as MatchResult;
-      setMatch(parsed);
+      setMatch(JSON.parse(saved) as MatchResult);
       return true;
     } catch {
-     return false;
+      return false;
     }
   }
 
-  async function loadLatestSavedMatch(
-    currentUserId: string,
-    jobId: string
-  ) {
+  async function loadLatestSavedMatch(currentUserId: string, jobId: string) {
     if (!currentUserId || !jobId) return;
 
     const response = await fetch("/api/ai-match-history", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: currentUserId,
-        job_id: jobId,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: currentUserId, job_id: jobId }),
     });
 
     const data = await response.json();
 
     if (response.ok && data.status === "completed") {
       const latest = (data.history || [])[0];
-
       if (latest?.result) {
         setMatch(latest.result);
-        saveMatchToBrowser(
-          currentUserId,
-          jobId,
-          latest.result
-        );
+        saveMatchToBrowser(currentUserId, jobId, latest.result);
       }
     }
   }
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const { data: userData } = await supabaseBrowser.auth.getUser();
+        const user = userData.user;
+
+        if (!user) {
+          window.location.href = "/login";
+          return;
+        }
 
         setUserId(user.id);
 
@@ -159,11 +134,11 @@ export default function AIMatchScorePage() {
           if (selected) {
             setSelectedJobId(selected.id);
             setSelectedJob(selected);
-            const restored = restoreMatchFromBrowser(user.id, selected.id);
 
+            const restored = restoreMatchFromBrowser(user.id, selected.id);
             if (!restored) {
               await loadLatestSavedMatch(user.id, selected.id);
-            }   
+            }
           }
         }
       } catch (error) {
@@ -186,7 +161,10 @@ export default function AIMatchScorePage() {
     if (jobId) {
       window.history.replaceState(null, "", `/ai-match-score?job_id=${jobId}`);
       if (userId) {
-        await loadLatestSavedMatch(userId, jobId);
+        const restored = restoreMatchFromBrowser(userId, jobId);
+        if (!restored) {
+          await loadLatestSavedMatch(userId, jobId);
+        }
       }
     }
   }
@@ -208,9 +186,7 @@ export default function AIMatchScorePage() {
 
     const response = await fetch("/api/ai-match-score", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: userId,
         job_id: selectedJob.id,
@@ -232,7 +208,6 @@ export default function AIMatchScorePage() {
     }
 
     const result = data.match || null;
-
     setMatch(result);
 
     if (result) {
@@ -267,11 +242,7 @@ export default function AIMatchScorePage() {
             <p className="text-sm font-semibold uppercase tracking-widest text-blue-300">
               AI Match Score
             </p>
-
-            <h1 className="mt-2 text-4xl font-bold">
-              Know Your Chances Before You Apply
-            </h1>
-
+            <h1 className="mt-2 text-4xl font-bold">Know Your Chances Before You Apply</h1>
             <p className="mt-3 max-w-3xl text-slate-300">
               Compare your CV against a job description and get your match score,
               strengths, gaps, missing keywords and improvement actions.
@@ -289,9 +260,7 @@ export default function AIMatchScorePage() {
 
       {!resumeText && (
         <section className="mt-8 rounded-3xl border bg-amber-50 p-6">
-          <h2 className="text-xl font-bold text-amber-900">
-            Resume text not found
-          </h2>
+          <h2 className="text-xl font-bold text-amber-900">Resume text not found</h2>
           <p className="mt-2 text-amber-800">
             Upload and extract your resume first before using AI Match Score.
           </p>
@@ -331,11 +300,9 @@ export default function AIMatchScorePage() {
                 <Briefcase size={18} />
                 <p className="font-semibold">{selectedJob.title}</p>
               </div>
-
               <p className="mt-2 text-sm text-slate-600">
                 {selectedJob.company_name || "Company not stated"}
               </p>
-
               <p className="mt-1 text-sm text-slate-500">
                 {selectedJob.location_display || "Location not stated"}
               </p>
@@ -377,9 +344,7 @@ export default function AIMatchScorePage() {
                 {match.recommendation || "No recommendation available"}
               </p>
 
-              <p className="mt-4 leading-7 text-slate-600">
-                {match.summary}
-              </p>
+              <p className="mt-4 leading-7 text-slate-600">{match.summary}</p>
 
               <div className="mt-8 grid gap-5 md:grid-cols-2">
                 <ResultBox title="Strengths" items={match.strengths} />
@@ -397,9 +362,7 @@ export default function AIMatchScorePage() {
               {selectedJob && (
                 <div className="mt-8 flex flex-wrap gap-3">
                   <Link
-                    href={`/interview-iq?role=${encodeURIComponent(
-                      selectedJob.title
-                    )}&company=${encodeURIComponent(
+                    href={`/interview-iq?role=${encodeURIComponent(selectedJob.title)}&company=${encodeURIComponent(
                       selectedJob.company_name || ""
                     )}`}
                     className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
@@ -427,7 +390,6 @@ function ResultBox({ title, items }: { title: string; items?: string[] }) {
   return (
     <div className="rounded-2xl bg-slate-50 p-5">
       <h3 className="font-bold text-slate-900">{title}</h3>
-
       {items && items.length > 0 ? (
         <ul className="mt-3 space-y-2 text-sm text-slate-700">
           {items.map((item, index) => (
