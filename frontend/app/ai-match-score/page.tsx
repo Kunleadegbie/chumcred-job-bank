@@ -127,6 +127,8 @@ export default function AIMatchScorePage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        user_id: userId,
+        job_id: selectedJob.id,
         resume_text: resumeText,
         job_title: selectedJob.title,
         company_name: selectedJob.company_name || "",

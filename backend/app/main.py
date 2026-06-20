@@ -826,6 +826,8 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
     try:
         verify_cron_secret(x_cron_secret)
 
+        user_id = payload.get("user_id") or ""
+        job_id = payload.get("job_id") or ""
         resume_text = payload.get("resume_text") or ""
         job_title = payload.get("job_title") or ""
         company_name = payload.get("company_name") or ""
@@ -854,9 +856,26 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
             job_responsibilities=job_responsibilities,
         )
 
+        saved = False
+
+        if user_id:
+            supabase = get_supabase()
+
+        insert_response = supabase.table("ai_match_results").insert({
+            "user_id": user_id,
+            "job_id": job_id,
+            "job_title": job_title,
+            "company_name": company_name,
+            "match_score": result.get("match_score", 0),
+            "result": result,
+        }).execute()
+
+        saved = bool(insert_response.data)
+
         return {
             "status": "completed",
-            "match": result
+            "match": result,
+            "saved": saved
         }
 
     except Exception as e:
