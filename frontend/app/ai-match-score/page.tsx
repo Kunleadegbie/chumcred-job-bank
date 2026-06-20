@@ -150,12 +150,8 @@ export default function AIMatchScorePage() {
     setMessage("");
 
     if (jobId) {
-      window.history.replaceState(
-        null,
-        "",
-        `/ai-match-score?job_id=${selectedJob.id}&match_id=${data.match_result_id}`
-      );
-      
+      window.history.replaceState(null, "", `/ai-match-score?job_id=${jobId}`);
+
       if (userId) {
         await loadLatestSavedMatch(userId, jobId);
       }
@@ -205,7 +201,7 @@ export default function AIMatchScorePage() {
     window.history.replaceState(
       null,
       "",
-      `/ai-match-score?job_id=${selectedJob.id}`
+      `/ai-match-score?job_id=${selectedJob.id}&match_id=${data.match_result_id || ""}`
     );
 
     /*
