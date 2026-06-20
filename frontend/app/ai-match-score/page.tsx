@@ -39,30 +39,10 @@ export default function AIMatchScorePage() {
   const [message, setMessage] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
 
-  function getMatchStorageKey(currentUserId: string, jobId: string) {
-    return `ai_match_score_${currentUserId}_${jobId}`;
-  }
-
-  function saveMatchToBrowser(currentUserId: string, jobId: string, result: MatchResult) {
-    if (!currentUserId || !jobId || !result) return;
-    sessionStorage.setItem(getMatchStorageKey(currentUserId, jobId), JSON.stringify(result));
-  }
-
-  function restoreMatchFromBrowser(currentUserId: string, jobId: string): boolean {
-    if (!currentUserId || !jobId) return false;
-    const saved = sessionStorage.getItem(getMatchStorageKey(currentUserId, jobId));
-    if (!saved) return false;
-
-    try {
-      setMatch(JSON.parse(saved) as MatchResult);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   async function loadLatestSavedMatch(currentUserId: string, jobId: string) {
     if (!currentUserId || !jobId) return;
+
+    setMessage("");
 
     const response = await fetch("/api/ai-match-history", {
       method: "POST",
@@ -72,12 +52,17 @@ export default function AIMatchScorePage() {
 
     const data = await response.json();
 
-    if (response.ok && data.status === "completed") {
-      const latest = (data.history || [])[0];
-      if (latest?.result) {
-        setMatch(latest.result);
-        saveMatchToBrowser(currentUserId, jobId, latest.result);
-      }
+    if (!response.ok || data.status === "error") {
+      setMessage(data.message || data.error || "Unable to load saved match result.");
+      return;
+    }
+
+    const latest = (data.history || [])[0];
+
+    if (latest?.result) {
+      setMatch(latest.result as MatchResult);
+    } else {
+      setMatch(null);
     }
   }
 
@@ -134,11 +119,7 @@ export default function AIMatchScorePage() {
           if (selected) {
             setSelectedJobId(selected.id);
             setSelectedJob(selected);
-
-            const restored = restoreMatchFromBrowser(user.id, selected.id);
-            if (!restored) {
-              await loadLatestSavedMatch(user.id, selected.id);
-            }
+            await loadLatestSavedMatch(user.id, selected.id);
           }
         }
       } catch (error) {
@@ -161,10 +142,7 @@ export default function AIMatchScorePage() {
     if (jobId) {
       window.history.replaceState(null, "", `/ai-match-score?job_id=${jobId}`);
       if (userId) {
-        const restored = restoreMatchFromBrowser(userId, jobId);
-        if (!restored) {
-          await loadLatestSavedMatch(userId, jobId);
-        }
+        await loadLatestSavedMatch(userId, jobId);
       }
     }
   }
@@ -207,14 +185,9 @@ export default function AIMatchScorePage() {
       return;
     }
 
-    const result = data.match || null;
-    setMatch(result);
-
-    if (result) {
-      saveMatchToBrowser(userId, selectedJob.id, result);
-    }
-
+    setMatch(data.match || null);
     window.history.replaceState(null, "", `/ai-match-score?job_id=${selectedJob.id}`);
+
     setAnalyzing(false);
   }
 
@@ -242,7 +215,9 @@ export default function AIMatchScorePage() {
             <p className="text-sm font-semibold uppercase tracking-widest text-blue-300">
               AI Match Score
             </p>
-            <h1 className="mt-2 text-4xl font-bold">Know Your Chances Before You Apply</h1>
+            <h1 className="mt-2 text-4xl font-bold">
+              Know Your Chances Before You Apply
+            </h1>
             <p className="mt-3 max-w-3xl text-slate-300">
               Compare your CV against a job description and get your match score,
               strengths, gaps, missing keywords and improvement actions.
@@ -327,7 +302,7 @@ export default function AIMatchScorePage() {
                 Your AI Match Score will appear here
               </h2>
               <p className="mt-2 text-slate-600">
-                Select a job and click Analyze Match. Saved results will also reload here automatically.
+                Select a job and click Analyze Match. Saved results will reload from your AI Match History.
               </p>
             </div>
           ) : (
