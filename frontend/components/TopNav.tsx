@@ -120,7 +120,7 @@ export default function TopNav() {
                 <DropdownLink href="/ai-job-search">AI Global Job Search</DropdownLink>
                 <DropdownLink href="/interview-iq?mode=multi">Multi-Round InterviewIQ</DropdownLink>
                 <DropdownLink href="/ai-match-score">AI Match Score</DropdownLink>
-                <DropdownLink href="/ai-match-history">AI Match History</DropDownLink>
+                <DropdownLink href="/ai-match-history">AI Match History</DropdownLink>
    
               </Dropdown>
 
