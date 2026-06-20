@@ -83,7 +83,30 @@ export default function AIMatchHistoryPage() {
 
   const above80 = scores.filter((score) => score >= 80).length;
 
-    const below50 = scores.filter((score) => score < 50).length;
+  const below50 = scores.filter((score) => score < 50).length;
+
+  const trendData = [...history]
+    .reverse()
+    .map((item) => {
+      const score = item.match_score || item.result?.match_score || 0;
+
+      return {
+        id: item.id,
+        label: new Date(item.created_at).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        }),
+        score,
+        jobTitle: item.job_title || "Untitled Job",
+      };
+    })
+    .filter((item) => item.score > 0);
+
+  const maxTrendScore =
+    trendData.length > 0
+      ? Math.max(...trendData.map((item) => item.score))
+      : 100;
+
   
   if (loading) {
     return (
@@ -130,6 +153,54 @@ export default function AIMatchHistoryPage() {
         <DashboardCard title="Above 80%" value={above80} />
         <DashboardCard title="Below 50%" value={below50} />
       </section>
+      
+      {trendData.length > 0 && (
+        <section className="mt-8 rounded-3xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+        <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+          Match Score Trend
+        </p>
+        <h2 className="mt-2 text-2xl font-bold text-slate-900">
+          Your AI Match Progress Over Time
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          See how your match scores are changing across analyzed jobs.
+        </p>
+      </div>
+    </div>
+
+    <div className="mt-8 flex h-72 items-end gap-4 overflow-x-auto border-b border-slate-200 pb-4">
+      {trendData.map((item) => {
+        const height = Math.max(
+          12,
+          Math.round((item.score / maxTrendScore) * 220)
+        );
+
+        return (
+          <div
+            key={item.id}
+            className="flex min-w-[80px] flex-col items-center justify-end"
+            title={`${item.jobTitle}: ${item.score}%`}
+          >
+            <p className="mb-2 text-sm font-bold text-blue-700">
+              {item.score}%
+            </p>
+
+            <div
+              className="w-10 rounded-t-xl bg-blue-600"
+              style={{ height: `${height}px` }}
+            />
+
+            <p className="mt-3 text-xs font-semibold text-slate-600">
+              {item.label}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  </section>
+)}
 
       {message && (
         <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700">
