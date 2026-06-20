@@ -150,7 +150,12 @@ export default function AIMatchScorePage() {
     setMessage("");
 
     if (jobId) {
-      window.history.replaceState(null, "", `/ai-match-score?job_id=${jobId}`);
+      window.history.replaceState(
+        null,
+        "",
+        `/ai-match-score?job_id=${selectedJob.id}&match_id=${data.match_result_id}`
+      );
+      
       if (userId) {
         await loadLatestSavedMatch(userId, jobId);
       }

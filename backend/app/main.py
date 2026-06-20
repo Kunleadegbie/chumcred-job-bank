@@ -838,9 +838,6 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
         if not resume_text.strip():
             return {"status": "error", "message": "resume_text is required"}
 
-        if not job_description.strip() and not job_title.strip():
-            return {"status": "error", "message": "job_title or job_description is required"}
-
         result = generate_ai_match_score(
             resume_text=resume_text,
             job_title=job_title,
@@ -851,6 +848,7 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
         )
 
         saved = False
+        match_result_id = None
 
         if user_id:
             supabase = get_supabase()
@@ -865,11 +863,13 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
             }).execute()
 
             saved = bool(insert_response.data)
+            match_result_id = insert_response.data[0]["id"] if insert_response.data else None
 
         return {
             "status": "completed",
             "match": result,
-            "saved": saved
+            "saved": saved,
+            "match_result_id": match_result_id,
         }
 
     except Exception as e:
@@ -882,6 +882,7 @@ def ai_match_history(payload: dict, x_cron_secret: str = Header(default=None)):
 
         user_id = payload.get("user_id")
         job_id = payload.get("job_id")
+        match_id = payload.get("match_id")
 
         if not user_id:
             return {"status": "error", "message": "user_id is required"}
@@ -892,13 +893,14 @@ def ai_match_history(payload: dict, x_cron_secret: str = Header(default=None)):
             supabase.table("ai_match_results")
             .select("*")
             .eq("user_id", user_id)
-            .order("created_at", desc=True)
         )
 
-        if job_id:
+        if match_id:
+            query = query.eq("id", match_id)
+        elif job_id:
             query = query.eq("job_id", job_id)
 
-        response = query.limit(50).execute()
+        response = query.order("created_at", desc=True).limit(50).execute()
 
         return {
             "status": "completed",
