@@ -39,76 +39,52 @@ export default function AIMatchScorePage() {
   const [message, setMessage] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
 
-  async function loadLatestSavedMatch(
-    currentUserId: string,
-    jobId: string
-  ) {
+  async function loadSpecificMatch(currentUserId: string, matchId: string) {
+    if (!currentUserId || !matchId) return false;
+
+    const response = await fetch("/api/ai-match-history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        user_id: currentUserId,
+        match_id: matchId,
+      }),
+    });
+
+    const data = await response.json();
+    const record = data?.history?.[0];
+
+    if (response.ok && data.status === "completed" && record?.result) {
+      setMatch(record.result as MatchResult);
+      return true;
+    }
+
+    return false;
+  }
+
+  async function loadLatestSavedMatch(currentUserId: string, jobId: string) {
     if (!currentUserId || !jobId) return;
 
-    try {
-      const response = await fetch("/api/ai-match-history", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-      },
+    const response = await fetch("/api/ai-match-history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
       body: JSON.stringify({
         user_id: currentUserId,
         job_id: jobId,
       }),
-      cache: "no-store",
     });
 
-    async function loadSpecificMatch(matchId: string) {
-      try {
-        const response = await fetch("/api/ai-match-history", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },  
-          body: JSON.stringify({
-            user_id: userId,
-            match_id: matchId,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (
-          response.ok &&
-          data.status === "completed" &&
-          data.history?.length
-        ) {
-          const record = data.history[0];
-
-          if (record.result) {
-            setMatch(record.result);
-            return true;
-          }
-        }
-
-        return false;
-      } catch {
-        return false;
-      }
-    }
-
     const data = await response.json();
+    const latest = data?.history?.[0];
 
-    if (!response.ok || data.status === "error") {
-      return;
-    }
-
-    const latest = (data.history || [])[0];
-
-    if (latest?.result) {
-      setMatch({ ...latest.result });
+    if (response.ok && data.status === "completed" && latest?.result) {
+      setMatch(latest.result as MatchResult);
     } else {
       setMatch(null);
     }
-  } catch (error) {
-    console.error(error);
   }
-}
 
   useEffect(() => {
     async function init() {
@@ -146,7 +122,8 @@ export default function AIMatchScorePage() {
         setJobs(loadedJobs);
 
         if (jobIdFromUrl) {
-          let selected = loadedJobs.find((job) => job.id === jobIdFromUrl) || null;
+          let selected =
+            loadedJobs.find((job) => job.id === jobIdFromUrl) || null;
 
           if (!selected) {
             const { data: singleJob } = await supabaseBrowser
@@ -165,11 +142,9 @@ export default function AIMatchScorePage() {
             setSelectedJobId(selected.id);
             setSelectedJob(selected);
 
-            let restored = false;
-
-            if (matchIdFromUrl) {
-              restored = await loadSpecificMatch(matchIdFromUrl);
-            }
+            const restored = matchIdFromUrl
+              ? await loadSpecificMatch(user.id, matchIdFromUrl)
+              : false;
 
             if (!restored) {
               await loadLatestSavedMatch(user.id, selected.id);
@@ -177,14 +152,16 @@ export default function AIMatchScorePage() {
           }
         }
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Unable to load AI Match Score.");
+        setMessage(
+          error instanceof Error ? error.message : "Unable to load AI Match Score."
+        );
       } finally {
         setLoading(false);
       }
     }
 
     init();
-  }, [selectedJobId]);
+  }, []);
 
   async function handleJobSelect(jobId: string) {
     setSelectedJobId(jobId);
@@ -213,6 +190,8 @@ export default function AIMatchScorePage() {
       return;
     }
 
+    const currentJob = selectedJob;
+
     setAnalyzing(true);
     setMessage("");
     setMatch(null);
@@ -222,13 +201,13 @@ export default function AIMatchScorePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: userId,
-        job_id: selectedJob.id,
+        job_id: currentJob.id,
         resume_text: resumeText,
-        job_title: selectedJob.title,
-        company_name: selectedJob.company_name || "",
-        job_description: selectedJob.description || "",
-        job_requirements: selectedJob.requirements || "",
-        job_responsibilities: selectedJob.responsibilities || "",
+        job_title: currentJob.title,
+        company_name: currentJob.company_name || "",
+        job_description: currentJob.description || "",
+        job_requirements: currentJob.requirements || "",
+        job_responsibilities: currentJob.responsibilities || "",
       }),
     });
 
@@ -241,22 +220,16 @@ export default function AIMatchScorePage() {
     }
 
     setMatch(data.match || null);
-    console.log(
-      "Saved Match ID:",
-      data.match_result_id
-    );
 
     window.history.replaceState(
       null,
       "",
-      `/ai-match-score?job_id=${selectedJob.id}&match_id=${data.match_result_id || ""}`
+      `/ai-match-score?job_id=${currentJob.id}&match_id=${data.match_result_id || ""}`
     );
 
-    /*
-    * Force reload latest saved result
-    * from database immediately after save.
-    */
-    await loadLatestSavedMatch(userId, selectedJob.id);
+    if (data.match_result_id) {
+      await loadSpecificMatch(userId, data.match_result_id);
+    }
 
     setAnalyzing(false);
   }
@@ -303,33 +276,14 @@ export default function AIMatchScorePage() {
         </div>
       )}
 
-      {!resumeText && (
-        <section className="mt-8 rounded-3xl border bg-amber-50 p-6">
-          <h2 className="text-xl font-bold text-amber-900">Resume text not found</h2>
-          <p className="mt-2 text-amber-800">
-            Upload and extract your resume first before using AI Match Score.
-          </p>
-          <Link
-            href="/profile/resume"
-            className="mt-4 inline-block rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white hover:bg-amber-700"
-          >
-            Upload Resume
-          </Link>
-        </section>
-      )}
-
       <section className="mt-8 grid gap-6 lg:grid-cols-3">
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-900">Select Job</h2>
 
-          <label className="mt-5 block text-sm font-semibold text-slate-700">
-            Available Jobs
-          </label>
-
           <select
             value={selectedJobId}
             onChange={(e) => handleJobSelect(e.target.value)}
-            className="mt-2 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
+            className="mt-5 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
           >
             <option value="">Choose a job...</option>
             {jobs.map((job) => (
@@ -372,7 +326,7 @@ export default function AIMatchScorePage() {
                 Your AI Match Score will appear here
               </h2>
               <p className="mt-2 text-slate-600">
-                Select a job and click Analyze Match. Saved results will reload from your AI Match History.
+                Select a job and click Analyze Match.
               </p>
             </div>
           ) : (
@@ -403,26 +357,6 @@ export default function AIMatchScorePage() {
                 <TextBox title="Experience Alignment" content={match.experience_alignment} />
                 <TextBox title="Education Alignment" content={match.education_alignment} />
               </div>
-
-              {selectedJob && (
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Link
-                    href={`/interview-iq?role=${encodeURIComponent(selectedJob.title)}&company=${encodeURIComponent(
-                      selectedJob.company_name || ""
-                    )}`}
-                    className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-                  >
-                    Practice Interview
-                  </Link>
-
-                  <Link
-                    href="/ai-match-history"
-                    className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    View Match History
-                  </Link>
-                </div>
-              )}
             </div>
           )}
         </div>
