@@ -28,6 +28,12 @@ type MatchResult = {
   improvement_actions: string[];
 };
 
+type MatchHistory = {
+  id: string;
+  job_id: string | null;
+  result: MatchResult | null;
+};
+
 export default function AIMatchScorePage() {
   const [resumeText, setResumeText] = useState("");
   const [userId, setUserId] = useState("");
@@ -40,73 +46,107 @@ export default function AIMatchScorePage() {
   const [message, setMessage] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
 
+  async function loadLatestSavedMatch(currentUserId: string, jobId: string) {
+    if (!currentUserId || !jobId) return;
+
+    const response = await fetch("/api/ai-match-history", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: currentUserId,
+        job_id: jobId,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.status === "completed") {
+      const latest = (data.history || [])[0] as MatchHistory | undefined;
+      setMatch(latest?.result || null);
+    }
+  }
+
   useEffect(() => {
     async function init() {
-      const { data: userData } = await supabaseBrowser.auth.getUser();
-      const user = userData.user;
+      try {
+        const { data: userData } = await supabaseBrowser.auth.getUser();
+        const user = userData.user;
 
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
-  
-      setUserId(user.id);
+        if (!user) {
+          window.location.href = "/login";
+          return;
+        }
 
-      const params = new URLSearchParams(window.location.search);
-      const jobIdFromUrl = params.get("job_id") || "";
+        setUserId(user.id);
 
-      const { data: profile } = await supabaseBrowser
-        .from("profiles")
-        .select("resume_text")
-        .eq("id", user.id)
-        .maybeSingle();
+        const params = new URLSearchParams(window.location.search);
+        const jobIdFromUrl = params.get("job_id") || "";
 
-      setResumeText(profile?.resume_text || "");
+        const { data: profile } = await supabaseBrowser
+          .from("profiles")
+          .select("resume_text")
+          .eq("id", user.id)
+          .maybeSingle();
 
-      const { data: jobData } = await supabaseBrowser
-        .from("jobs")
-        .select("id,title,company_name,description,requirements,responsibilities,location_display")
-        .is("deleted_at", null)
-        .order("posted_at", { ascending: false })
-        .limit(100);
+        setResumeText(profile?.resume_text || "");
 
-      const loadedJobs = (jobData || []) as Job[];
-      setJobs(loadedJobs);
+        const { data: jobData } = await supabaseBrowser
+          .from("jobs")
+          .select("id,title,company_name,description,requirements,responsibilities,location_display")
+          .is("deleted_at", null)
+          .order("posted_at", { ascending: false })
+          .limit(100);
 
-      if (jobIdFromUrl) {
-        const jobFromList = loadedJobs.find((job) => job.id === jobIdFromUrl);
+        const loadedJobs = (jobData || []) as Job[];
+        setJobs(loadedJobs);
 
-        if (jobFromList) {
-          setSelectedJobId(jobFromList.id);
-          setSelectedJob(jobFromList);
-        } else {
-          const { data: singleJob } = await supabaseBrowser
-            .from("jobs")
-            .select("id,title,company_name,description,requirements,responsibilities,location_display")
-            .eq("id", jobIdFromUrl)
-            .maybeSingle();
+        if (jobIdFromUrl) {
+          let selected = loadedJobs.find((job) => job.id === jobIdFromUrl) || null;
 
-          if (singleJob) {
-            const job = singleJob as Job;
-            setSelectedJobId(job.id);
-            setSelectedJob(job);
-            setJobs((prev) => [job, ...prev]);
+          if (!selected) {
+            const { data: singleJob } = await supabaseBrowser
+              .from("jobs")
+              .select("id,title,company_name,description,requirements,responsibilities,location_display")
+              .eq("id", jobIdFromUrl)
+              .maybeSingle();
+
+            if (singleJob) {
+              selected = singleJob as Job;
+              setJobs((prev) => [selected as Job, ...prev]);
+            }
+          }
+
+          if (selected) {
+            setSelectedJobId(selected.id);
+            setSelectedJob(selected);
+            await loadLatestSavedMatch(user.id, selected.id);
           }
         }
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to load AI Match Score.");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     init();
   }, []);
 
-  function handleJobSelect(jobId: string) {
+  async function handleJobSelect(jobId: string) {
     setSelectedJobId(jobId);
     const job = jobs.find((item) => item.id === jobId) || null;
     setSelectedJob(job);
     setMatch(null);
     setMessage("");
+
+    if (jobId) {
+      window.history.replaceState(null, "", `/ai-match-score?job_id=${jobId}`);
+      if (userId) {
+        await loadLatestSavedMatch(userId, jobId);
+      }
+    }
   }
 
   async function analyzeMatch() {
@@ -150,6 +190,7 @@ export default function AIMatchScorePage() {
     }
 
     setMatch(data.match || null);
+    window.history.replaceState(null, "", `/ai-match-score?job_id=${selectedJob.id}`);
     setAnalyzing(false);
   }
 
@@ -270,7 +311,7 @@ export default function AIMatchScorePage() {
                 Your AI Match Score will appear here
               </h2>
               <p className="mt-2 text-slate-600">
-                Select a job and click Analyze Match.
+                Select a job and click Analyze Match. Saved results will also reload here automatically.
               </p>
             </div>
           ) : (
@@ -318,10 +359,10 @@ export default function AIMatchScorePage() {
                   </Link>
 
                   <Link
-                    href="/ai-cv-review"
+                    href="/ai-match-history"
                     className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
                   >
-                    Improve CV
+                    View Match History
                   </Link>
                 </div>
               )}
@@ -333,13 +374,7 @@ export default function AIMatchScorePage() {
   );
 }
 
-function ResultBox({
-  title,
-  items,
-}: {
-  title: string;
-  items?: string[];
-}) {
+function ResultBox({ title, items }: { title: string; items?: string[] }) {
   return (
     <div className="rounded-2xl bg-slate-50 p-5">
       <h3 className="font-bold text-slate-900">{title}</h3>

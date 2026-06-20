@@ -32,27 +32,37 @@ export default function AIMatchHistoryPage() {
 
   useEffect(() => {
     async function init() {
-      const { data: userData } = await supabaseBrowser.auth.getUser();
-      const user = userData.user;
+      try {
+        const { data: userData } = await supabaseBrowser.auth.getUser();
+        const user = userData.user;
 
-      if (!user) {
-        window.location.href = "/login";
-        return;
+        if (!user) {
+          window.location.href = "/login";
+          return;
+        }
+
+        const response = await fetch("/api/ai-match-history", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.status === "error") {
+          setMessage(data.message || data.error || "Unable to load AI match history.");
+        } else {
+          setHistory((data.history || []) as MatchHistory[]);
+        }
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to load AI match history.");
+      } finally {
+        setLoading(false);
       }
-
-      const { data, error } = await supabaseBrowser
-        .from("ai_match_results")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        setMessage(error.message || "Unable to load AI match history.");
-      } else {
-        setHistory((data || []) as MatchHistory[]);
-      }
-
-      setLoading(false);
     }
 
     init();
@@ -165,14 +175,8 @@ export default function AIMatchHistoryPage() {
               <div className="mt-6 grid gap-5 md:grid-cols-2">
                 <ResultBox title="Strengths" items={item.result?.strengths} />
                 <ResultBox title="Gaps" items={item.result?.gaps} />
-                <ResultBox
-                  title="Missing Keywords"
-                  items={item.result?.missing_keywords}
-                />
-                <ResultBox
-                  title="Improvement Actions"
-                  items={item.result?.improvement_actions}
-                />
+                <ResultBox title="Missing Keywords" items={item.result?.missing_keywords} />
+                <ResultBox title="Improvement Actions" items={item.result?.improvement_actions} />
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -181,7 +185,7 @@ export default function AIMatchHistoryPage() {
                     href={`/ai-match-score?job_id=${item.job_id}`}
                     className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
                   >
-                    Re-analyze
+                    Re-analyze / View
                   </Link>
                 )}
 
@@ -200,13 +204,7 @@ export default function AIMatchHistoryPage() {
   );
 }
 
-function ResultBox({
-  title,
-  items,
-}: {
-  title: string;
-  items?: string[];
-}) {
+function ResultBox({ title, items }: { title: string; items?: string[] }) {
   return (
     <div className="rounded-2xl bg-slate-50 p-5">
       <h3 className="font-bold text-slate-900">{title}</h3>
