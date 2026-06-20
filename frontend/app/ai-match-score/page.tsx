@@ -29,7 +29,6 @@ type MatchResult = {
 };
 
 export default function AIMatchScorePage() {
-  const [userId, setUserId] = useState("");
   const [resumeText, setResumeText] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState("");
@@ -50,7 +49,8 @@ export default function AIMatchScorePage() {
         return;
       }
 
-      setUserId(user.id);
+      const params = new URLSearchParams(window.location.search);
+      const jobIdFromUrl = params.get("job_id") || "";
 
       const { data: profile } = await supabaseBrowser
         .from("profiles")
@@ -67,7 +67,31 @@ export default function AIMatchScorePage() {
         .order("posted_at", { ascending: false })
         .limit(100);
 
-      setJobs((jobData || []) as Job[]);
+      const loadedJobs = (jobData || []) as Job[];
+      setJobs(loadedJobs);
+
+      if (jobIdFromUrl) {
+        const jobFromList = loadedJobs.find((job) => job.id === jobIdFromUrl);
+
+        if (jobFromList) {
+          setSelectedJobId(jobFromList.id);
+          setSelectedJob(jobFromList);
+        } else {
+          const { data: singleJob } = await supabaseBrowser
+            .from("jobs")
+            .select("id,title,company_name,description,requirements,responsibilities,location_display")
+            .eq("id", jobIdFromUrl)
+            .maybeSingle();
+
+          if (singleJob) {
+            const job = singleJob as Job;
+            setSelectedJobId(job.id);
+            setSelectedJob(job);
+            setJobs((prev) => [job, ...prev]);
+          }
+        }
+      }
+
       setLoading(false);
     }
 
@@ -265,14 +289,8 @@ export default function AIMatchScorePage() {
               <div className="mt-8 grid gap-5 md:grid-cols-2">
                 <ResultBox title="Strengths" items={match.strengths} />
                 <ResultBox title="Gaps" items={match.gaps} />
-                <ResultBox
-                  title="Missing Keywords"
-                  items={match.missing_keywords}
-                />
-                <ResultBox
-                  title="Improvement Actions"
-                  items={match.improvement_actions}
-                />
+                <ResultBox title="Missing Keywords" items={match.missing_keywords} />
+                <ResultBox title="Improvement Actions" items={match.improvement_actions} />
               </div>
 
               <div className="mt-8 grid gap-5 md:grid-cols-3">

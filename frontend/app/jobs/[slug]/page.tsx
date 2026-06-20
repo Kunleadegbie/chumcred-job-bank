@@ -232,6 +232,13 @@ export default async function JobDetailsPage({
               Practice Interview
             </Link>
 
+            <Link
+              href={`/ai-match-score?job_id=${job.id}`}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-center font-semibold text-white hover:bg-blue-700"
+            >
+              Analyze Match
+            </Link>
+
             <ApplyButton jobId={job.id} applyUrl={job.original_job_url} />
 
             <p className="mt-3 text-xs text-slate-500">
