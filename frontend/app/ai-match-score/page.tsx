@@ -58,6 +58,40 @@ export default function AIMatchScorePage() {
       cache: "no-store",
     });
 
+    async function loadSpecificMatch(matchId: string) {
+      try {
+        const response = await fetch("/api/ai-match-history", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },  
+          body: JSON.stringify({
+            user_id: userId,
+            match_id: matchId,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (
+          response.ok &&
+          data.status === "completed" &&
+          data.history?.length
+        ) {
+          const record = data.history[0];
+
+          if (record.result) {
+            setMatch(record.result);
+            return true;
+          }
+        }
+
+        return false;
+      } catch {
+        return false;
+      }
+    }
+
     const data = await response.json();
 
     if (!response.ok || data.status === "error") {
@@ -91,6 +125,7 @@ export default function AIMatchScorePage() {
 
         const params = new URLSearchParams(window.location.search);
         const jobIdFromUrl = params.get("job_id") || "";
+        const matchIdFromUrl = params.get("match_id") || "";
 
         const { data: profile } = await supabaseBrowser
           .from("profiles")
@@ -129,7 +164,16 @@ export default function AIMatchScorePage() {
           if (selected) {
             setSelectedJobId(selected.id);
             setSelectedJob(selected);
-            await loadLatestSavedMatch(user.id, selected.id);
+
+            let restored = false;
+
+            if (matchIdFromUrl) {
+              restored = await loadSpecificMatch(matchIdFromUrl);
+            }
+
+            if (!restored) {
+              await loadLatestSavedMatch(user.id, selected.id);
+            }
           }
         }
       } catch (error) {
@@ -197,6 +241,10 @@ export default function AIMatchScorePage() {
     }
 
     setMatch(data.match || null);
+    console.log(
+      "Saved Match ID:",
+      data.match_result_id
+    );
 
     window.history.replaceState(
       null,
