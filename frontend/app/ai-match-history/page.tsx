@@ -106,7 +106,27 @@ export default function AIMatchHistoryPage() {
     trendData.length > 0
       ? Math.max(...trendData.map((item) => item.score))
       : 100;
+  
+  const latestScore = scores.length > 0 ? scores[0] : 0;
 
+  const readinessScore =
+    scores.length > 0
+      ? Math.round((averageScore * 0.5) + (highestScore * 0.3) + (latestScore * 0.2))
+      : 0;
+
+  const readinessLabel =
+    readinessScore >= 80
+      ? "Ready to Apply"
+      : readinessScore >= 60
+        ? "Almost Ready"
+        : "Needs Improvement";
+
+  const readinessMessage =
+    readinessScore >= 80
+      ? "Your profile is showing strong alignment with recent job opportunities."
+      : readinessScore >= 60
+        ? "You are close, but should improve keywords, role fit and gap areas before applying."
+        : "Your CV needs stronger alignment with target job requirements before applying.";
   
   if (loading) {
     return (
@@ -201,6 +221,36 @@ export default function AIMatchHistoryPage() {
     </div>
   </section>
 )}
+
+      <section className="mt-8 rounded-3xl border bg-white p-6 shadow-sm">
+        <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+          Application Readiness Score
+        </p>
+
+        <div className="mt-4 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-900">
+        {readinessLabel}
+           </h2>
+
+      <p className="mt-3 max-w-2xl text-slate-600">
+        {readinessMessage}
+      </p>
+    </div>
+
+    <div className="rounded-3xl bg-blue-50 px-8 py-6 text-center text-blue-700">
+      <p className="text-5xl font-bold">{readinessScore}%</p>
+      <p className="mt-1 text-sm font-semibold">Readiness Score</p>
+    </div>
+  </div>
+
+  <div className="mt-6 h-4 overflow-hidden rounded-full bg-slate-100">
+    <div
+      className="h-full rounded-full bg-blue-600"
+      style={{ width: `${readinessScore}%` }}
+    />
+  </div>
+</section>
 
       {message && (
         <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-700">
