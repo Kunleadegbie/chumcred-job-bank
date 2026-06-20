@@ -827,7 +827,7 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
         verify_cron_secret(x_cron_secret)
 
         user_id = payload.get("user_id") or ""
-        job_id = payload.get("job_id") or ""
+        job_id = payload.get("job_id") or None
         resume_text = payload.get("resume_text") or ""
         job_title = payload.get("job_title") or ""
         company_name = payload.get("company_name") or ""
@@ -836,16 +836,10 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
         job_responsibilities = payload.get("job_responsibilities") or ""
 
         if not resume_text.strip():
-            return {
-                "status": "error",
-                "message": "resume_text is required"
-            }
+            return {"status": "error", "message": "resume_text is required"}
 
         if not job_description.strip() and not job_title.strip():
-            return {
-                "status": "error",
-                "message": "job_title or job_description is required"
-            }
+            return {"status": "error", "message": "job_title or job_description is required"}
 
         result = generate_ai_match_score(
             resume_text=resume_text,
@@ -861,16 +855,16 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
         if user_id:
             supabase = get_supabase()
 
-        insert_response = supabase.table("ai_match_results").insert({
-            "user_id": user_id,
-            "job_id": job_id,
-            "job_title": job_title,
-            "company_name": company_name,
-            "match_score": result.get("match_score", 0),
-            "result": result,
-        }).execute()
+            insert_response = supabase.table("ai_match_results").insert({
+                "user_id": user_id,
+                "job_id": job_id,
+                "job_title": job_title,
+                "company_name": company_name,
+                "match_score": result.get("match_score", 0),
+                "result": result,
+            }).execute()
 
-        saved = bool(insert_response.data)
+            saved = bool(insert_response.data)
 
         return {
             "status": "completed",
@@ -879,7 +873,37 @@ def ai_match_score(payload: dict, x_cron_secret: str = Header(default=None)):
         }
 
     except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/tasks/ai-match-history")
+def ai_match_history(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+        job_id = payload.get("job_id")
+
+        if not user_id:
+            return {"status": "error", "message": "user_id is required"}
+
+        supabase = get_supabase()
+
+        query = (
+            supabase.table("ai_match_results")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+        )
+
+        if job_id:
+            query = query.eq("job_id", job_id)
+
+        response = query.limit(50).execute()
+
         return {
-            "status": "error",
-            "message": str(e)
+            "status": "completed",
+            "history": response.data or []
         }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
