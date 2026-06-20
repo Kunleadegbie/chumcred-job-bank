@@ -28,6 +28,14 @@ type MatchResult = {
   improvement_actions: string[];
 };
 
+type MatchRecord = {
+  id: string;
+  job_id: string | null;
+  job_title: string | null;
+  company_name: string | null;
+  result: MatchResult | null;
+};
+
 export default function AIMatchScorePage() {
   const [resumeText, setResumeText] = useState("");
   const [userId, setUserId] = useState("");
@@ -39,48 +47,81 @@ export default function AIMatchScorePage() {
   const [message, setMessage] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
 
-  async function loadSpecificMatch(currentUserId: string, matchId: string) {
-    if (!currentUserId || !matchId) return false;
-
+  async function fetchHistory(currentUserId: string, extra: Record<string, string> = {}) {
     const response = await fetch("/api/ai-match-history", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
-      body: JSON.stringify({
-        user_id: currentUserId,
-        match_id: matchId,
-      }),
+      body: JSON.stringify({ user_id: currentUserId, ...extra }),
     });
 
     const data = await response.json();
-    const record = data?.history?.[0];
 
-    if (response.ok && data.status === "completed" && record?.result) {
-      setMatch(record.result as MatchResult);
-      return true;
-    }
-
-    return false;
+    if (!response.ok || data.status === "error") return null;
+    return (data.history || [])[0] as MatchRecord | undefined;
   }
 
-  async function loadLatestSavedMatch(currentUserId: string, jobId: string) {
-    if (!currentUserId || !jobId) return;
+  async function selectJobById(jobId: string, loadedJobs: Job[]) {
+    let job = loadedJobs.find((item) => item.id === jobId) || null;
 
-    const response = await fetch("/api/ai-match-history", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify({
-        user_id: currentUserId,
-        job_id: jobId,
-      }),
-    });
+    if (!job) {
+      const { data: singleJob } = await supabaseBrowser
+        .from("jobs")
+        .select("id,title,company_name,description,requirements,responsibilities,location_display")
+        .eq("id", jobId)
+        .maybeSingle();
 
-    const data = await response.json();
-    const latest = data?.history?.[0];
+      if (singleJob) {
+        job = singleJob as Job;
+        setJobs((prev) => [job as Job, ...prev]);
+      }
+    }
 
-    if (response.ok && data.status === "completed" && latest?.result) {
-      setMatch(latest.result as MatchResult);
+    if (job) {
+      setSelectedJobId(job.id);
+      setSelectedJob(job);
+    }
+  }
+
+  async function restoreMatch(currentUserId: string, loadedJobs: Job[]) {
+    const params = new URLSearchParams(window.location.search);
+    const jobIdFromUrl = params.get("job_id") || "";
+    const matchIdFromUrl = params.get("match_id") || "";
+    const savedMatchId = localStorage.getItem("last_ai_match_id") || "";
+
+    let record: MatchRecord | undefined | null = null;
+
+    if (matchIdFromUrl) {
+      record = await fetchHistory(currentUserId, { match_id: matchIdFromUrl });
+    }
+
+    if (!record && savedMatchId) {
+      record = await fetchHistory(currentUserId, { match_id: savedMatchId });
+    }
+
+    if (!record && jobIdFromUrl) {
+      record = await fetchHistory(currentUserId, { job_id: jobIdFromUrl });
+    }
+
+    if (!record) {
+      record = await fetchHistory(currentUserId);
+    }
+
+    if (record?.result) {
+      setMatch(record.result);
+
+      if (record.id) {
+        localStorage.setItem("last_ai_match_id", record.id);
+      }
+
+      if (record.job_id) {
+        await selectJobById(record.job_id, loadedJobs);
+        window.history.replaceState(
+          null,
+          "",
+          `/ai-match-score?job_id=${record.job_id}&match_id=${record.id}`
+        );
+      }
     } else {
       setMatch(null);
     }
@@ -98,10 +139,6 @@ export default function AIMatchScorePage() {
         }
 
         setUserId(user.id);
-
-        const params = new URLSearchParams(window.location.search);
-        const jobIdFromUrl = params.get("job_id") || "";
-        const matchIdFromUrl = params.get("match_id") || "";
 
         const { data: profile } = await supabaseBrowser
           .from("profiles")
@@ -121,40 +158,9 @@ export default function AIMatchScorePage() {
         const loadedJobs = (jobData || []) as Job[];
         setJobs(loadedJobs);
 
-        if (jobIdFromUrl) {
-          let selected =
-            loadedJobs.find((job) => job.id === jobIdFromUrl) || null;
-
-          if (!selected) {
-            const { data: singleJob } = await supabaseBrowser
-              .from("jobs")
-              .select("id,title,company_name,description,requirements,responsibilities,location_display")
-              .eq("id", jobIdFromUrl)
-              .maybeSingle();
-
-            if (singleJob) {
-              selected = singleJob as Job;
-              setJobs((prev) => [selected as Job, ...prev]);
-            }
-          }
-
-          if (selected) {
-            setSelectedJobId(selected.id);
-            setSelectedJob(selected);
-
-            const restored = matchIdFromUrl
-              ? await loadSpecificMatch(user.id, matchIdFromUrl)
-              : false;
-
-            if (!restored) {
-              await loadLatestSavedMatch(user.id, selected.id);
-            }
-          }
-        }
+        await restoreMatch(user.id, loadedJobs);
       } catch (error) {
-        setMessage(
-          error instanceof Error ? error.message : "Unable to load AI Match Score."
-        );
+        setMessage(error instanceof Error ? error.message : "Unable to load AI Match Score.");
       } finally {
         setLoading(false);
       }
@@ -172,10 +178,6 @@ export default function AIMatchScorePage() {
 
     if (jobId) {
       window.history.replaceState(null, "", `/ai-match-score?job_id=${jobId}`);
-
-      if (userId) {
-        await loadLatestSavedMatch(userId, jobId);
-      }
     }
   }
 
@@ -221,14 +223,13 @@ export default function AIMatchScorePage() {
 
     setMatch(data.match || null);
 
-    window.history.replaceState(
-      null,
-      "",
-      `/ai-match-score?job_id=${currentJob.id}&match_id=${data.match_result_id || ""}`
-    );
-
     if (data.match_result_id) {
-      await loadSpecificMatch(userId, data.match_result_id);
+      localStorage.setItem("last_ai_match_id", data.match_result_id);
+      window.history.replaceState(
+        null,
+        "",
+        `/ai-match-score?job_id=${currentJob.id}&match_id=${data.match_result_id}`
+      );
     }
 
     setAnalyzing(false);
