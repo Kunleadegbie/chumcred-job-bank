@@ -46,7 +46,36 @@ export default function AIMatchScorePage() {
   const [message, setMessage] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
 
-  async function loadLatestSavedMatch(currentUserId: string, jobId: string) {
+  async function loadLatestSavedMatch(currentUserId: string, jobId: string) 
+ 
+  function getMatchStorageKey(currentUserId: string, jobId: string) {
+    return `ai_match_score_${currentUserId}_${jobId}`;
+  }
+
+  function saveMatchToBrowser(currentUserId: string, jobId: string, result:     MatchResult) {
+    if (!currentUserId || !jobId || !result) return;
+    sessionStorage.setItem(
+      getMatchStorageKey(currentUserId, jobId),
+      JSON.stringify(result)
+    );
+  }
+
+  function restoreMatchFromBrowser(currentUserId: string, jobId: string) {
+    if (!currentUserId || !jobId) return false;
+
+    const saved = sessionStorage.getItem(getMatchStorageKey(currentUserId, jobId));
+
+    if (!saved) return false;
+
+    try {
+      setMatch(JSON.parse(saved) as MatchResult);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+{
     if (!currentUserId || !jobId) return;
 
     const response = await fetch("/api/ai-match-history", {
@@ -121,7 +150,11 @@ export default function AIMatchScorePage() {
           if (selected) {
             setSelectedJobId(selected.id);
             setSelectedJob(selected);
-            await loadLatestSavedMatch(user.id, selected.id);
+            const restored = restoreMatchFromBrowser(user.id, selected.id);
+
+            if (!restored) {
+              await loadLatestSavedMatch(user.id, selected.id);
+            }   
           }
         }
       } catch (error) {
@@ -189,7 +222,14 @@ export default function AIMatchScorePage() {
       return;
     }
 
-    setMatch(data.match || null);
+    const result = data.match || null;
+
+    setMatch(result);
+
+    if (result) {
+      saveMatchToBrowser(userId, selectedJob.id, result);
+    }
+
     window.history.replaceState(null, "", `/ai-match-score?job_id=${selectedJob.id}`);
     setAnalyzing(false);
   }
