@@ -46,36 +46,48 @@ export default function AIMatchScorePage() {
   const [message, setMessage] = useState("");
   const [match, setMatch] = useState<MatchResult | null>(null);
 
-  async function loadLatestSavedMatch(currentUserId: string, jobId: string) 
- 
   function getMatchStorageKey(currentUserId: string, jobId: string) {
     return `ai_match_score_${currentUserId}_${jobId}`;
   }
 
-  function saveMatchToBrowser(currentUserId: string, jobId: string, result:     MatchResult) {
+  function saveMatchToBrowser(
+    currentUserId: string,
+    jobId: string,
+    result: MatchResult
+  ) {
     if (!currentUserId || !jobId || !result) return;
+
     sessionStorage.setItem(
       getMatchStorageKey(currentUserId, jobId),
       JSON.stringify(result)
     );
   }
 
-  function restoreMatchFromBrowser(currentUserId: string, jobId: string) {
+  function restoreMatchFromBrowser(
+    currentUserId: string,
+    jobId: string
+  ): boolean {
     if (!currentUserId || !jobId) return false;
 
-    const saved = sessionStorage.getItem(getMatchStorageKey(currentUserId, jobId));
+    const saved = sessionStorage.getItem(
+      getMatchStorageKey(currentUserId, jobId)
+    );
 
     if (!saved) return false;
 
     try {
-      setMatch(JSON.parse(saved) as MatchResult);
+      const parsed = JSON.parse(saved) as MatchResult;
+      setMatch(parsed);
       return true;
     } catch {
-      return false;
+     return false;
     }
   }
 
-{
+  async function loadLatestSavedMatch(
+    currentUserId: string,
+    jobId: string
+  ) {
     if (!currentUserId || !jobId) return;
 
     const response = await fetch("/api/ai-match-history", {
@@ -92,21 +104,18 @@ export default function AIMatchScorePage() {
     const data = await response.json();
 
     if (response.ok && data.status === "completed") {
-      const latest = (data.history || [])[0] as MatchHistory | undefined;
-      setMatch(latest?.result || null);
+      const latest = (data.history || [])[0];
+
+      if (latest?.result) {
+        setMatch(latest.result);
+        saveMatchToBrowser(
+          currentUserId,
+          jobId,
+          latest.result
+        );
+      }
     }
   }
-
-  useEffect(() => {
-    async function init() {
-      try {
-        const { data: userData } = await supabaseBrowser.auth.getUser();
-        const user = userData.user;
-
-        if (!user) {
-          window.location.href = "/login";
-          return;
-        }
 
         setUserId(user.id);
 
