@@ -68,6 +68,23 @@ export default function AIMatchHistoryPage() {
     init();
   }, []);
 
+  const totalMatches = history.length;
+
+  const scores = history
+    .map((item) => item.match_score || item.result?.match_score || 0)
+    .filter((score) => score > 0);
+
+  const averageScore =
+    scores.length > 0
+      ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+      : 0;
+
+  const highestScore = scores.length > 0 ? Math.max(...scores) : 0;
+
+  const above80 = scores.filter((score) => score >= 80).length;
+
+    const below50 = scores.filter((score) => score < 50).length;
+  
   if (loading) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-16">
@@ -75,6 +92,8 @@ export default function AIMatchHistoryPage() {
       </main>
     );
   }
+
+  
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
@@ -102,6 +121,14 @@ export default function AIMatchHistoryPage() {
             </p>
           </div>
         </div>
+      </section>
+      
+      <section className="mt-8 grid gap-5 md:grid-cols-5">
+        <DashboardCard title="Total Matches" value={totalMatches} />
+        <DashboardCard title="Average Score" value={`${averageScore}%`} />
+        <DashboardCard title="Highest Score" value={`${highestScore}%`} />
+        <DashboardCard title="Above 80%" value={above80} />
+        <DashboardCard title="Below 50%" value={below50} />
       </section>
 
       {message && (
@@ -218,6 +245,21 @@ function ResultBox({ title, items }: { title: string; items?: string[] }) {
       ) : (
         <p className="mt-3 text-sm text-slate-500">Not available.</p>
       )}
+    </div>
+  );
+}
+
+function DashboardCard({
+  title,
+  value,
+}: {
+  title: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-2xl border bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-500">{title}</p>
+      <p className="mt-3 text-3xl font-bold text-blue-700">{value}</p>
     </div>
   );
 }
