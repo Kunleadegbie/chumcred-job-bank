@@ -1,0 +1,244 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { AlertCircle, Briefcase, Sparkles, Target } from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+
+type RecommendedJob = {
+  job_id: string;
+  title: string;
+  company_name: string | null;
+  location_display: string | null;
+  country: string | null;
+  work_type: string | null;
+  employment_type: string | null;
+  match_score: number;
+  matched_keywords: string[];
+  missing_keywords: string[];
+  summary: string;
+};
+
+export default function RecommendedJobsPage() {
+  const [jobs, setJobs] = useState<RecommendedJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function loadRecommendations() {
+      const { data: userData } = await supabaseBrowser.auth.getUser();
+      const user = userData.user;
+
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/job-recommendations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: user.id,
+            limit: 50,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.status === "error") {
+          setMessage(
+            data.message || data.error || "Unable to load recommended jobs."
+          );
+        } else {
+          setJobs((data.recommendations || []) as RecommendedJob[]);
+        }
+      } catch {
+        setMessage("Unable to load recommended jobs.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadRecommendations();
+  }, []);
+
+  if (loading) {
+    return (
+      <main className="mx-auto max-w-7xl px-6 py-16">
+        <p className="text-slate-600">Loading recommended jobs...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-7xl px-6 py-12">
+      <Link href="/dashboard" className="text-sm font-semibold text-blue-700">
+        ← Back to Dashboard
+      </Link>
+
+      <section className="mt-8 rounded-3xl bg-slate-950 p-8 text-white">
+        <div className="flex items-center gap-4">
+          <div className="rounded-2xl bg-blue-600 p-3">
+            <Sparkles size={34} />
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-widest text-blue-300">
+              Smart Job Recommendations
+            </p>
+
+            <h1 className="mt-2 text-4xl font-bold">Best Fit Jobs</h1>
+
+            <p className="mt-3 max-w-3xl text-slate-300">
+              Jobs ranked against your CV using AI keyword and role-fit signals.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {message && (
+        <div className="mt-6 flex items-start gap-3 rounded-xl bg-amber-50 p-4 text-amber-800">
+          <AlertCircle size={20} />
+          <div>
+            <p className="text-sm font-semibold">{message}</p>
+            <Link
+              href="/profile/resume"
+              className="mt-2 inline-block text-sm font-bold text-amber-900"
+            >
+              Upload or extract resume →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {jobs.length === 0 && !message ? (
+        <section className="mt-8 rounded-3xl border bg-white p-10 text-center shadow-sm">
+          <Target className="mx-auto h-12 w-12 text-slate-400" />
+          <h2 className="mt-4 text-2xl font-bold text-slate-900">
+            No recommended jobs yet
+          </h2>
+          <p className="mt-2 text-slate-600">
+            Upload and extract your resume so the platform can recommend best-fit jobs.
+          </p>
+          <Link
+            href="/profile/resume"
+            className="mt-5 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+          >
+            Upload Resume
+          </Link>
+        </section>
+      ) : (
+        <section className="mt-8 grid gap-5">
+          {jobs.map((job) => (
+            <div key={job.job_id} className="rounded-3xl border bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-blue-700">
+                    <Briefcase size={18} />
+                    <p className="text-sm font-semibold uppercase tracking-widest">
+                      Recommended job
+                    </p>
+                  </div>
+
+                  <h2 className="mt-3 text-2xl font-bold text-slate-900">
+                    {job.title}
+                  </h2>
+
+                  <p className="mt-2 text-slate-600">
+                    {job.company_name || "Company not stated"}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {job.location_display || job.country || "Location not stated"}
+                    {job.work_type ? ` • ${job.work_type}` : ""}
+                    {job.employment_type ? ` • ${job.employment_type}` : ""}
+                  </p>
+
+                  <p className="mt-4 max-w-4xl leading-7 text-slate-700">
+                    {job.summary}
+                  </p>
+                </div>
+
+                <div className="rounded-3xl bg-blue-50 px-7 py-5 text-center text-blue-700">
+                  <p className="text-4xl font-bold">{job.match_score}%</p>
+                  <p className="mt-1 text-xs font-semibold">Fit Score</p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-5 md:grid-cols-2">
+                <KeywordBox
+                  title="Matched Keywords"
+                  items={job.matched_keywords}
+                  emptyText="No strong matched keywords detected."
+                />
+
+                <KeywordBox
+                  title="Missing Keywords"
+                  items={job.missing_keywords}
+                  emptyText="No major missing keywords detected."
+                />
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href={`/jobs/${job.job_id}`}
+                  className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+                >
+                  View Job
+                </Link>
+
+                <Link
+                  href={`/ai-match-score?job_id=${job.job_id}`}
+                  className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Analyze Match
+                </Link>
+
+                <Link
+                  href={`/interview-iq?role=${encodeURIComponent(job.title)}&company=${encodeURIComponent(
+                    job.company_name || ""
+                  )}`}
+                  className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Practice Interview
+                </Link>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+    </main>
+  );
+}
+
+function KeywordBox({
+  title,
+  items,
+  emptyText,
+}: {
+  title: string;
+  items?: string[];
+  emptyText: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-5">
+      <h3 className="font-bold text-slate-900">{title}</h3>
+
+      {items && items.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {items.slice(0, 12).map((item) => (
+            <span
+              key={item}
+              className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">{emptyText}</p>
+      )}
+    </div>
+  );
+}

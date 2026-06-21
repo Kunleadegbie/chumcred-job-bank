@@ -324,6 +324,7 @@ export default function DashboardPage() {
           <QuickLink href="/ai-job-search" label="AI Global Job Search" />
           <QuickLink href="/ai-match-score" label="AI Match Score" />
           <QuickLink href="/ai-match-history" label="AI Match History" />
+          <QuickLink href="/recommended-jobs" label="Recommended Jobs" />
         </div>
       </section>
     </main>
