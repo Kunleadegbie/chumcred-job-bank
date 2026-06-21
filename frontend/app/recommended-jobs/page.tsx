@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Briefcase, Sparkles, Target } from "lucide-react";
+import { AlertCircle, Briefcase, Sparkles, Target, RefreshCw } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type RecommendedJob = {
@@ -19,48 +19,77 @@ type RecommendedJob = {
   summary: string;
 };
 
+const CACHE_KEY = "recommended_jobs_cache";
+
 export default function RecommendedJobsPage() {
   const [jobs, setJobs] = useState<RecommendedJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    async function loadRecommendations() {
-      const { data: userData } = await supabaseBrowser.auth.getUser();
-      const user = userData.user;
+  async function loadRecommendations(forceRefresh = false) {
+    if (forceRefresh) {
+      localStorage.removeItem(CACHE_KEY);
+      setJobs([]);
+      setLoading(true);
+      setMessage("");
+    }
 
-      if (!user) {
-        window.location.href = "/login";
+    const { data: userData } = await supabaseBrowser.auth.getUser();
+    const user = userData.user;
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      setRefreshing(true);
+
+      const response = await fetch("/api/job-recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          user_id: user.id,
+          limit: 50,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to load recommended jobs.");
         return;
       }
 
+      const recommendations = (data.recommendations || []) as RecommendedJob[];
+
+      setJobs(recommendations);
+      localStorage.setItem(CACHE_KEY, JSON.stringify(recommendations));
+      setMessage("");
+    } catch {
+      setMessage("Unable to load recommended jobs.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    const cached = localStorage.getItem(CACHE_KEY);
+
+    if (cached) {
       try {
-        const response = await fetch("/api/job-recommendations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: user.id,
-            limit: 50,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || data.status === "error") {
-          setMessage(
-            data.message || data.error || "Unable to load recommended jobs."
-          );
-        } else {
-          setJobs((data.recommendations || []) as RecommendedJob[]);
-        }
-      } catch {
-        setMessage("Unable to load recommended jobs.");
-      } finally {
+        const parsed = JSON.parse(cached) as RecommendedJob[];
+        setJobs(parsed);
         setLoading(false);
+      } catch {
+        localStorage.removeItem(CACHE_KEY);
       }
     }
 
-    loadRecommendations();
+    loadRecommendations(false);
   }, []);
 
   if (loading) {
@@ -78,22 +107,33 @@ export default function RecommendedJobsPage() {
       </Link>
 
       <section className="mt-8 rounded-3xl bg-slate-950 p-8 text-white">
-        <div className="flex items-center gap-4">
-          <div className="rounded-2xl bg-blue-600 p-3">
-            <Sparkles size={34} />
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="rounded-2xl bg-blue-600 p-3">
+              <Sparkles size={34} />
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-widest text-blue-300">
+                Smart Job Recommendations
+              </p>
+
+              <h1 className="mt-2 text-4xl font-bold">Best Fit Jobs</h1>
+
+              <p className="mt-3 max-w-3xl text-slate-300">
+                Jobs ranked against your CV using AI keyword and role-fit signals.
+              </p>
+            </div>
           </div>
 
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-widest text-blue-300">
-              Smart Job Recommendations
-            </p>
-
-            <h1 className="mt-2 text-4xl font-bold">Best Fit Jobs</h1>
-
-            <p className="mt-3 max-w-3xl text-slate-300">
-              Jobs ranked against your CV using AI keyword and role-fit signals.
-            </p>
-          </div>
+          <button
+            onClick={() => loadRecommendations(true)}
+            disabled={refreshing}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            <RefreshCw size={16} />
+            {refreshing ? "Refreshing..." : "Refresh Recommendations"}
+          </button>
         </div>
       </section>
 
