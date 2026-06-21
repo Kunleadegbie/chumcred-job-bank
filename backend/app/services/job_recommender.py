@@ -6,7 +6,10 @@ STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "from", "into", "your",
     "you", "are", "will", "our", "their", "have", "has", "was", "were",
     "been", "being", "job", "role", "work", "team", "company", "candidate",
-    "experience", "skills", "responsibilities", "requirements"
+    "experience", "skills", "responsibilities", "requirements", "about",
+    "available", "applicant", "applicants", "contract", "better", "balance",
+    "believe", "centred", "child", "annum", "including", "within", "across",
+    "must", "should", "able", "using", "based", "support", "provide"
 }
 
 
@@ -25,43 +28,72 @@ def extract_keywords(text: str) -> set[str]:
     }
 
 
+def overlap_score(resume_keywords: set[str], field_text: str) -> tuple[int, list[str]]:
+    field_keywords = extract_keywords(field_text)
+
+    if not resume_keywords or not field_keywords:
+        return 0, []
+
+    matched = resume_keywords.intersection(field_keywords)
+
+    if not matched:
+        return 0, []
+
+    coverage = len(matched) / max(len(field_keywords), 1)
+
+    score = round(min(100, coverage * 100))
+
+    return score, sorted(list(matched))
+
+
 def score_job_against_resume(resume_text: str, job: dict) -> dict:
     resume_keywords = extract_keywords(resume_text)
 
-    job_text = " ".join(
-        [
-            normalize_text(job.get("title")),
-            normalize_text(job.get("company_name")),
-            normalize_text(job.get("description")),
-            normalize_text(job.get("requirements")),
-            normalize_text(job.get("responsibilities")),
-            normalize_text(job.get("industry")),
-            normalize_text(job.get("job_function")),
-            normalize_text(job.get("location_display")),
-            normalize_text(job.get("country")),
-            normalize_text(job.get("work_type")),
-        ]
+    title_text = normalize_text(job.get("title"))
+    requirements_text = normalize_text(job.get("requirements"))
+    responsibilities_text = normalize_text(job.get("responsibilities"))
+    description_text = normalize_text(job.get("description"))
+
+    title_score, title_matches = overlap_score(resume_keywords, title_text)
+    requirements_score, requirements_matches = overlap_score(resume_keywords, requirements_text)
+    responsibilities_score, responsibilities_matches = overlap_score(resume_keywords, responsibilities_text)
+    description_score, description_matches = overlap_score(resume_keywords, description_text)
+
+    weighted_score = round(
+        (title_score * 0.30)
+        + (requirements_score * 0.35)
+        + (responsibilities_score * 0.20)
+        + (description_score * 0.15)
     )
 
-    job_keywords = extract_keywords(job_text)
+    all_matched_keywords = sorted(
+        list(
+            set(
+                title_matches
+                + requirements_matches
+                + responsibilities_matches
+                + description_matches
+            )
+        )
+    )
 
-    if not resume_keywords or not job_keywords:
-        match_score = 0
-        matched_keywords = []
-        missing_keywords = list(job_keywords)[:10]
-    else:
-        matched = resume_keywords.intersection(job_keywords)
-        missing = job_keywords.difference(resume_keywords)
+    job_keywords = extract_keywords(
+        " ".join(
+            [
+                title_text,
+                requirements_text,
+                responsibilities_text,
+                description_text,
+                normalize_text(job.get("industry")),
+                normalize_text(job.get("job_function")),
+                normalize_text(job.get("location_display")),
+                normalize_text(job.get("country")),
+                normalize_text(job.get("work_type")),
+            ]
+        )
+    )
 
-        coverage = len(matched) / max(len(job_keywords), 1)
-
-        if coverage <= 0:
-            match_score = 0
-        else:
-            match_score = round(min(95, coverage * 100))
-
-        matched_keywords = sorted(list(matched))[:15]
-        missing_keywords = sorted(list(missing))[:15]
+    missing_keywords = sorted(list(job_keywords.difference(resume_keywords)))[:15]
 
     return {
         "job_id": job.get("id"),
@@ -72,10 +104,14 @@ def score_job_against_resume(resume_text: str, job: dict) -> dict:
         "work_type": job.get("work_type"),
         "employment_type": job.get("employment_type"),
         "original_job_url": job.get("original_job_url"),
-        "match_score": match_score,
-        "matched_keywords": matched_keywords,
+        "match_score": weighted_score,
+        "matched_keywords": all_matched_keywords[:15],
         "missing_keywords": missing_keywords,
-        "summary": build_recommendation_summary(match_score, matched_keywords, missing_keywords),
+        "summary": build_recommendation_summary(
+            weighted_score,
+            all_matched_keywords,
+            missing_keywords,
+        ),
     }
 
 
@@ -85,11 +121,13 @@ def build_recommendation_summary(
     missing_keywords: list[str],
 ) -> str:
     if match_score >= 80:
-        opening = "Strong fit based on your CV keywords and the job requirements."
+        opening = "Strong fit based on your CV and the job requirements."
     elif match_score >= 60:
         opening = "Good potential fit, but your CV may need some targeting."
     elif match_score >= 40:
         opening = "Moderate fit. Review the gaps before applying."
+    elif match_score >= 25:
+        opening = "Low-to-moderate fit. Apply only if the role is strategically important."
     else:
         opening = "Low fit based on current CV alignment."
 
@@ -107,10 +145,11 @@ def recommend_jobs_for_resume(
     scored_jobs = []
 
     for job in jobs:
-      score = score_job_against_resume(resume_text, job)
+        score = score_job_against_resume(resume_text, job)
 
-      if score["match_score"] > 0:
-          scored_jobs.append(score)
+        # Only show realistic recommendations.
+        if score["match_score"] >= 25:
+            scored_jobs.append(score)
 
     scored_jobs.sort(key=lambda item: item["match_score"], reverse=True)
 
