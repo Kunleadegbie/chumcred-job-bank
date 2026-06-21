@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Briefcase, Heart, FileText, UserCircle, LogOut } from "lucide-react";
+import {
+  Briefcase,
+  Heart,
+  FileText,
+  UserCircle,
+  LogOut,
+  Sparkles,
+  Target,
+} from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type UserProfile = {
@@ -13,12 +21,29 @@ type UserProfile = {
   role?: string;
 };
 
+type RecommendedJob = {
+  job_id: string;
+  title: string;
+  company_name: string | null;
+  location_display: string | null;
+  country: string | null;
+  work_type: string | null;
+  employment_type: string | null;
+  match_score: number;
+  matched_keywords: string[];
+  missing_keywords: string[];
+  summary: string;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true);
   const [savedJobsCount, setSavedJobsCount] = useState(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendedJob[]>([]);
+  const [recommendationMessage, setRecommendationMessage] = useState("");
 
   useEffect(() => {
     async function loadDashboard() {
@@ -42,7 +67,8 @@ export default function DashboardPage() {
           user.user_metadata?.full_name ||
           "Candidate",
         email: profileData?.email || user.email || "",
-        country: profileData?.country || user.user_metadata?.country || "Not stated",
+        country:
+          profileData?.country || user.user_metadata?.country || "Not stated",
         role: profileData?.role || "applicant",
       });
 
@@ -52,6 +78,34 @@ export default function DashboardPage() {
         .eq("user_id", user.id);
 
       setSavedJobsCount(count || 0);
+
+      try {
+        const response = await fetch("/api/job-recommendations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            limit: 5,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.status === "error") {
+          setRecommendationMessage(
+            data.message || data.error || "Unable to load job recommendations."
+          );
+        } else {
+          setRecommendations((data.recommendations || []) as RecommendedJob[]);
+        }
+      } catch {
+        setRecommendationMessage("Unable to load job recommendations.");
+      } finally {
+        setRecommendationsLoading(false);
+      }
+
       setLoading(false);
     }
 
@@ -98,63 +152,32 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Saved Jobs</p>
-              <h2 className="mt-2 text-4xl font-bold text-slate-900">
-                {savedJobsCount}
-              </h2>
-            </div>
-            <div className="rounded-2xl bg-red-50 p-3 text-red-700">
-              <Heart size={24} />
-            </div>
-          </div>
+        <DashboardCard
+          title="Saved Jobs"
+          value={savedJobsCount}
+          icon={<Heart size={24} />}
+          iconClass="bg-red-50 text-red-700"
+          link="/saved-jobs"
+          linkText="View saved jobs →"
+        />
 
-          <Link
-            href="/saved-jobs"
-            className="mt-5 inline-block text-sm font-semibold text-blue-700"
-          >
-            View saved jobs →
-          </Link>
-        </div>
+        <DashboardCard
+          title="Applications"
+          value="0"
+          icon={<Briefcase size={24} />}
+          iconClass="bg-blue-50 text-blue-700"
+          note="Application tracking will appear here soon."
+        />
 
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Applications</p>
-              <h2 className="mt-2 text-4xl font-bold text-slate-900">0</h2>
-            </div>
-            <div className="rounded-2xl bg-blue-50 p-3 text-blue-700">
-              <Briefcase size={24} />
-            </div>
-          </div>
-
-          <p className="mt-5 text-sm text-slate-500">
-            Application tracking will appear here soon.
-          </p>
-        </div>
-
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Resume Status</p>
-              <h2 className="mt-2 text-lg font-bold text-slate-900">
-                Not Uploaded
-              </h2>
-            </div>
-            <div className="rounded-2xl bg-amber-50 p-3 text-amber-700">
-              <FileText size={24} />
-            </div>
-          </div>
-
-          <Link
-            href="/profile/resume"
-            className="mt-5 inline-block text-sm font-semibold text-blue-700"
-          >
-            Upload resume →
-          </Link>
-        </div>
+        <DashboardCard
+          title="Resume Status"
+          value="Check Resume"
+          icon={<FileText size={24} />}
+          iconClass="bg-amber-50 text-amber-700"
+          link="/profile/resume"
+          linkText="Upload resume →"
+          smallValue
+        />
 
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
@@ -169,68 +192,214 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <p className="mt-5 text-sm text-slate-600">
-            {profile?.email}
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            {profile?.country}
-          </p>
+          <p className="mt-5 text-sm text-slate-600">{profile?.email}</p>
+          <p className="mt-1 text-sm text-slate-500">{profile?.country}</p>
         </div>
       </div>
+
+      <section className="mt-10 rounded-3xl border bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+              Smart Job Recommendations
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">
+              Best Fit Jobs
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Jobs ranked against your CV using AI keyword and role-fit signals.
+            </p>
+          </div>
+
+          <Link
+            href="/jobs"
+            className="rounded-xl border px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Browse all jobs
+          </Link>
+        </div>
+
+        {recommendationsLoading ? (
+          <p className="mt-6 text-slate-600">Loading best fit jobs...</p>
+        ) : recommendationMessage ? (
+          <div className="mt-6 rounded-2xl bg-amber-50 p-5 text-amber-800">
+            <p className="font-semibold">{recommendationMessage}</p>
+            <Link
+              href="/profile/resume"
+              className="mt-3 inline-block text-sm font-bold text-amber-900"
+            >
+              Upload or extract resume →
+            </Link>
+          </div>
+        ) : recommendations.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-dashed p-8 text-center">
+            <Target className="mx-auto h-10 w-10 text-slate-400" />
+            <h3 className="mt-3 text-xl font-bold text-slate-900">
+              No recommendations yet
+            </h3>
+            <p className="mt-2 text-slate-600">
+              Upload your resume so we can recommend the best-fit jobs.
+            </p>
+            <Link
+              href="/profile/resume"
+              className="mt-4 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+            >
+              Upload Resume
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-5">
+            {recommendations.map((job) => (
+              <div
+                key={job.job_id}
+                className="rounded-2xl border bg-slate-50 p-5"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {job.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {job.company_name || "Company not stated"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {job.location_display || job.country || "Location not stated"}
+                      {job.work_type ? ` • ${job.work_type}` : ""}
+                      {job.employment_type ? ` • ${job.employment_type}` : ""}
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                      {job.summary}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-blue-50 px-5 py-4 text-center text-blue-700">
+                    <p className="text-3xl font-bold">{job.match_score}%</p>
+                    <p className="text-xs font-semibold">Fit Score</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {job.matched_keywords?.slice(0, 6).map((keyword) => (
+                    <span
+                      key={keyword}
+                      className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Link
+                    href={`/jobs/${job.job_id}`}
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    View Job
+                  </Link>
+
+                  <Link
+                    href={`/ai-match-score?job_id=${job.job_id}`}
+                    className="rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+                  >
+                    Analyze Match
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="mt-10 rounded-3xl border bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-900">Quick Actions</h2>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href="/jobs"
-            className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-          >
-            Browse Jobs
-          </Link>
-
-          <Link
-            href="/saved-jobs"
-            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Saved Jobs
-          </Link>
-
-          <Link
-            href="/my-applications"
-            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            My Applications
-          </Link>
-
-          <Link
-            href="/profile/resume"
-            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Upload Resume
-          </Link>
-          <Link
-            href="/ai-career-coach"
-            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
-            AI Career Coach
-          </Link>
-          <Link
-            href="/ai-cv-review"
-            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
-            AI CV Review
-          </Link>
-          <Link
-            href="/interview-iq"
-            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
-            InterviewIQ
-          </Link>
-          <Link
-            href="/ai-job-search"
-            className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
-            AI Global Job Search
-          </Link>
+          <QuickLink href="/jobs" label="Browse Jobs" primary />
+          <QuickLink href="/saved-jobs" label="Saved Jobs" />
+          <QuickLink href="/my-applications" label="My Applications" />
+          <QuickLink href="/profile/resume" label="Upload Resume" />
+          <QuickLink href="/ai-career-coach" label="AI Career Coach" />
+          <QuickLink href="/ai-cv-review" label="AI CV Review" />
+          <QuickLink href="/interview-iq" label="InterviewIQ" />
+          <QuickLink href="/ai-job-search" label="AI Global Job Search" />
+          <QuickLink href="/ai-match-score" label="AI Match Score" />
+          <QuickLink href="/ai-match-history" label="AI Match History" />
         </div>
       </section>
     </main>
+  );
+}
+
+function DashboardCard({
+  title,
+  value,
+  icon,
+  iconClass,
+  link,
+  linkText,
+  note,
+  smallValue = false,
+}: {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  iconClass: string;
+  link?: string;
+  linkText?: string;
+  note?: string;
+  smallValue?: boolean;
+}) {
+  return (
+    <div className="rounded-3xl border bg-white p-6 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-slate-500">{title}</p>
+          <h2
+            className={
+              smallValue
+                ? "mt-2 text-lg font-bold text-slate-900"
+                : "mt-2 text-4xl font-bold text-slate-900"
+            }
+          >
+            {value}
+          </h2>
+        </div>
+        <div className={`rounded-2xl p-3 ${iconClass}`}>{icon}</div>
+      </div>
+
+      {link && linkText ? (
+        <Link
+          href={link}
+          className="mt-5 inline-block text-sm font-semibold text-blue-700"
+        >
+          {linkText}
+        </Link>
+      ) : (
+        <p className="mt-5 text-sm text-slate-500">{note}</p>
+      )}
+    </div>
+  );
+}
+
+function QuickLink({
+  href,
+  label,
+  primary = false,
+}: {
+  href: string;
+  label: string;
+  primary?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        primary
+          ? "rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+          : "rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+      }
+    >
+      {label}
+    </Link>
   );
 }

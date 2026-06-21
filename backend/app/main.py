@@ -8,6 +8,7 @@ from fastapi import UploadFile, File, Form
 from app.services.transcription_service import transcribe_audio_file
 from app.services.interview_iq_analyzer import analyze_interview
 from app.services.ai_match_score import generate_ai_match_score
+from app.services.job_recommender import recommend_jobs_for_resume
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -909,3 +910,64 @@ def ai_match_history(payload: dict, x_cron_secret: str = Header(default=None)):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.post("/tasks/job-recommendations")
+def job_recommendations(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+        limit = payload.get("limit") or 10
+
+        if not user_id:
+            return {
+                "status": "error",
+                "message": "user_id is required"
+            }
+
+        supabase = get_supabase()
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("id,resume_text")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile = profile_response.data or {}
+        resume_text = profile.get("resume_text") or ""
+
+        if not resume_text.strip():
+            return {
+                "status": "error",
+                "message": "No resume text found. Please upload and extract your resume first."
+            }
+
+        jobs_response = (
+            supabase.table("jobs")
+            .select("*")
+            .is_("deleted_at", "null")
+            .limit(500)
+            .execute()
+        )
+
+        jobs = jobs_response.data or []
+
+        recommendations = recommend_jobs_for_resume(
+            resume_text=resume_text,
+            jobs=jobs,
+            limit=limit,
+        )
+
+        return {
+            "status": "completed",
+            "count": len(recommendations),
+            "recommendations": recommendations,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
