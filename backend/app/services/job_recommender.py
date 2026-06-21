@@ -54,7 +54,11 @@ def score_job_against_resume(resume_text: str, job: dict) -> dict:
         missing = job_keywords.difference(resume_keywords)
 
         coverage = len(matched) / max(len(job_keywords), 1)
-        match_score = round(min(95, max(20, coverage * 100)))
+
+        if coverage <= 0:
+            match_score = 0
+        else:
+            match_score = round(min(95, coverage * 100))
 
         matched_keywords = sorted(list(matched))[:15]
         missing_keywords = sorted(list(missing))[:15]
