@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Briefcase, Sparkles, Target, RefreshCw } from "lucide-react";
+import {
+  AlertCircle,
+  Briefcase,
+  Sparkles,
+  Target,
+  RefreshCw,
+} from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type RecommendedJob = {
@@ -19,39 +25,69 @@ type RecommendedJob = {
   summary: string;
 };
 
-const CACHE_KEY = "recommended_jobs_cache";
-
 export default function RecommendedJobsPage() {
   const [jobs, setJobs] = useState<RecommendedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
+  const [userId, setUserId] = useState("");
 
-  async function loadRecommendations(forceRefresh = false) {
-    if (forceRefresh) {
-      localStorage.removeItem(CACHE_KEY);
-      setJobs([]);
-      setLoading(true);
+  useEffect(() => {
+    async function init() {
+      const { data: userData } = await supabaseBrowser.auth.getUser();
+      const user = userData.user;
+
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setUserId(user.id);
+      await loadSavedRecommendations(user.id);
+      setLoading(false);
+    }
+
+    init();
+  }, []);
+
+  async function loadSavedRecommendations(currentUserId: string) {
+    try {
+      const response = await fetch("/api/job-recommendation-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          user_id: currentUserId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to load saved recommendations.");
+        return;
+      }
+
+      setJobs((data.recommendations || []) as RecommendedJob[]);
       setMessage("");
+    } catch {
+      setMessage("Unable to load saved recommendations.");
     }
+  }
 
-    const { data: userData } = await supabaseBrowser.auth.getUser();
-    const user = userData.user;
+  async function refreshRecommendations() {
+    if (!userId) return;
 
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
+    setRefreshing(true);
+    setMessage("");
 
     try {
-      setRefreshing(true);
-
       const response = await fetch("/api/job-recommendations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
         body: JSON.stringify({
-          user_id: user.id,
+          user_id: userId,
           limit: 50,
         }),
       });
@@ -59,38 +95,18 @@ export default function RecommendedJobsPage() {
       const data = await response.json();
 
       if (!response.ok || data.status === "error") {
-        setMessage(data.message || data.error || "Unable to load recommended jobs.");
+        setMessage(data.message || data.error || "Unable to refresh recommended jobs.");
         return;
       }
 
-      const recommendations = (data.recommendations || []) as RecommendedJob[];
-
-      setJobs(recommendations);
-      localStorage.setItem(CACHE_KEY, JSON.stringify(recommendations));
+      setJobs((data.recommendations || []) as RecommendedJob[]);
       setMessage("");
     } catch {
-      setMessage("Unable to load recommended jobs.");
+      setMessage("Unable to refresh recommended jobs.");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }
-
-  useEffect(() => {
-    const cached = localStorage.getItem(CACHE_KEY);
-
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as RecommendedJob[];
-        setJobs(parsed);
-        setLoading(false);
-      } catch {
-        localStorage.removeItem(CACHE_KEY);
-      }
-    }
-
-    loadRecommendations(false);
-  }, []);
 
   if (loading) {
     return (
@@ -127,7 +143,7 @@ export default function RecommendedJobsPage() {
           </div>
 
           <button
-            onClick={() => loadRecommendations(true)}
+            onClick={refreshRecommendations}
             disabled={refreshing}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           >
@@ -156,22 +172,27 @@ export default function RecommendedJobsPage() {
         <section className="mt-8 rounded-3xl border bg-white p-10 text-center shadow-sm">
           <Target className="mx-auto h-12 w-12 text-slate-400" />
           <h2 className="mt-4 text-2xl font-bold text-slate-900">
-            No recommended jobs yet
+            No saved recommendations yet
           </h2>
           <p className="mt-2 text-slate-600">
-            Upload and extract your resume so the platform can recommend best-fit jobs.
+            Click Refresh Recommendations to generate best-fit jobs from your CV.
           </p>
-          <Link
-            href="/profile/resume"
-            className="mt-5 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+          <button
+            onClick={refreshRecommendations}
+            disabled={refreshing}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            Upload Resume
-          </Link>
+            <RefreshCw size={16} />
+            {refreshing ? "Generating..." : "Generate Recommendations"}
+          </button>
         </section>
       ) : (
         <section className="mt-8 grid gap-5">
           {jobs.map((job) => (
-            <div key={job.job_id} className="rounded-3xl border bg-white p-6 shadow-sm">
+            <div
+              key={job.job_id}
+              className="rounded-3xl border bg-white p-6 shadow-sm"
+            >
               <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-blue-700">
@@ -236,9 +257,9 @@ export default function RecommendedJobsPage() {
                 </Link>
 
                 <Link
-                  href={`/interview-iq?role=${encodeURIComponent(job.title)}&company=${encodeURIComponent(
-                    job.company_name || ""
-                  )}`}
+                  href={`/interview-iq?role=${encodeURIComponent(
+                    job.title
+                  )}&company=${encodeURIComponent(job.company_name || "")}`}
                   className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Practice Interview

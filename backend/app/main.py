@@ -960,10 +960,57 @@ def job_recommendations(payload: dict, x_cron_secret: str = Header(default=None)
             limit=limit,
         )
 
+        save_response = supabase.table("job_recommendation_history").insert({
+            "user_id": user_id,
+            "recommendations": recommendations,
+        }).execute()
+
+        saved = bool(save_response.data)
+
         return {
             "status": "completed",
             "count": len(recommendations),
             "recommendations": recommendations,
+            "saved": saved,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.post("/tasks/job-recommendation-history")
+def job_recommendation_history(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+
+        if not user_id:
+            return {
+                "status": "error",
+                "message": "user_id is required"
+            }
+
+        supabase = get_supabase()
+
+        response = (
+            supabase.table("job_recommendation_history")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        latest = response.data[0] if response.data else None
+
+        return {
+            "status": "completed",
+            "recommendations": latest.get("recommendations") if latest else [],
+            "history_id": latest.get("id") if latest else None,
+            "created_at": latest.get("created_at") if latest else None,
         }
 
     except Exception as e:
