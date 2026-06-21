@@ -147,8 +147,7 @@ def recommend_jobs_for_resume(
     for job in jobs:
         score = score_job_against_resume(resume_text, job)
 
-        # Only show realistic recommendations.
-        if score["match_score"] >= 25:
+        if score["match_score"] > 0:
             scored_jobs.append(score)
 
     scored_jobs.sort(key=lambda item: item["match_score"], reverse=True)
