@@ -8,6 +8,7 @@ import {
   Sparkles,
   Target,
   RefreshCw,
+  UploadCloud,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -56,9 +57,7 @@ export default function RecommendedJobsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        body: JSON.stringify({
-          user_id: currentUserId,
-        }),
+        body: JSON.stringify({ user_id: currentUserId }),
       });
 
       const data = await response.json();
@@ -99,8 +98,16 @@ export default function RecommendedJobsPage() {
         return;
       }
 
-      setJobs((data.recommendations || []) as RecommendedJob[]);
-      setMessage("");
+      const recommendations = (data.recommendations || []) as RecommendedJob[];
+      setJobs(recommendations);
+
+      if (recommendations.length === 0) {
+        setMessage(
+          "No strong recommendations were generated yet. Please upload or re-extract your CV, then try again."
+        );
+      } else {
+        setMessage("");
+      }
     } catch {
       setMessage("Unable to refresh recommended jobs.");
     } finally {
@@ -162,29 +169,47 @@ export default function RecommendedJobsPage() {
               href="/profile/resume"
               className="mt-2 inline-block text-sm font-bold text-amber-900"
             >
-              Upload or extract resume →
+              Upload or extract CV →
             </Link>
           </div>
         </div>
       )}
 
-      {jobs.length === 0 && !message ? (
+      {jobs.length === 0 ? (
         <section className="mt-8 rounded-3xl border bg-white p-10 text-center shadow-sm">
           <Target className="mx-auto h-12 w-12 text-slate-400" />
+
           <h2 className="mt-4 text-2xl font-bold text-slate-900">
             No saved recommendations yet
           </h2>
-          <p className="mt-2 text-slate-600">
-            Click Refresh Recommendations to generate best-fit jobs from your CV.
+
+          <p className="mx-auto mt-2 max-w-2xl text-slate-600">
+            Upload or re-extract your CV first, then generate best-fit job
+            recommendations based on your skills, experience and role alignment.
           </p>
-          <button
-            onClick={refreshRecommendations}
-            disabled={refreshing}
-            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-          >
-            <RefreshCw size={16} />
-            {refreshing ? "Generating..." : "Generate Recommendations"}
-          </button>
+
+          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/profile/resume"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+            >
+              <UploadCloud size={18} />
+              Upload CV
+            </Link>
+
+            <button
+              onClick={refreshRecommendations}
+              disabled={refreshing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              <RefreshCw size={18} />
+              {refreshing ? "Generating..." : "Generate Recommendations"}
+            </button>
+          </div>
+
+          <p className="mt-5 text-sm text-slate-500">
+            Tip: If you already uploaded your CV, click Generate Recommendations.
+          </p>
         </section>
       ) : (
         <section className="mt-8 grid gap-5">
