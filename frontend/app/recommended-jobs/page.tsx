@@ -281,11 +281,11 @@ export default function RecommendedJobsPage() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  href={`/jobs/${job.job_id}`}
+                  href={`/recommended-jobs/${job.job_id}`}
                   className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
                 >
-                  View Job
-                </Link>
+                  View Recommendation
+                </Link>           
 
                 <Link
                   href={`/ai-match-score?job_id=${job.job_id}`}
