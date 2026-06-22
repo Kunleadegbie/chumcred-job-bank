@@ -79,7 +79,10 @@ export default function RecommendedJobsPage() {
         return;
       }
 
-      setJobs((data.recommendations || []) as RecommendedJob[]);
+      const recommendations = (data.recommendations || []) as RecommendedJob[];
+
+      setJobs(recommendations);
+      setFilteredJobs(recommendations);
       setMessage("");
     } catch {
       setMessage("Unable to load saved recommendations.");
@@ -109,8 +112,10 @@ export default function RecommendedJobsPage() {
       }
 
       const recommendations = (data.recommendations || []) as RecommendedJob[];
+
       setJobs(recommendations);
       setFilteredJobs(recommendations);
+      setActiveFilter("all");
 
       if (recommendations.length === 0) {
         setMessage(
@@ -137,27 +142,16 @@ export default function RecommendedJobsPage() {
 
     switch (filter) {
       case "best-fit":
-        setFilteredJobs(
-          [...jobs].sort(
-            (a, b) => b.match_score - a.match_score
-          )
-        );
+        setFilteredJobs([...jobs].sort((a, b) => b.match_score - a.match_score));
         break;
 
       case "high-match":
-        setFilteredJobs(
-          jobs.filter(
-            (job) => job.match_score >= 70
-          )
-        );
+        setFilteredJobs(jobs.filter((job) => job.match_score >= 70));
         break;
 
       case "remote":
         setFilteredJobs(
-          jobs.filter(
-            (job) =>
-              job.work_type?.toLowerCase().includes("remote")
-          )
+          jobs.filter((job) => job.work_type?.toLowerCase().includes("remote"))
         );
         break;
 
@@ -166,19 +160,14 @@ export default function RecommendedJobsPage() {
           jobs.filter(
             (job) =>
               job.country?.toLowerCase().includes("nigeria") ||
-              job.location_display
-                ?.toLowerCase()
-                .includes("nigeria")
+              job.location_display?.toLowerCase().includes("nigeria")
           )
         );
         break;
 
       case "low-gap":
         setFilteredJobs(
-          jobs.filter(
-            (job) =>
-              (job.missing_keywords?.length || 0) <= 5
-          )
+          jobs.filter((job) => (job.missing_keywords?.length || 0) <= 5)
         );
         break;
 
@@ -186,7 +175,6 @@ export default function RecommendedJobsPage() {
         setFilteredJobs(jobs);
     }
   }
-
 
   if (loading) {
     return (
@@ -285,126 +273,139 @@ export default function RecommendedJobsPage() {
           </p>
         </section>
       ) : (
+        <>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <FilterButton
+              label="All"
+              active={activeFilter === "all"}
+              onClick={() => applyFilter("all")}
+            />
 
-        <div className="mt-8 flex flex-wrap gap-3">
-          <FilterButton
-            label="All"
-            active={activeFilter === "all"}
-            onClick={() => applyFilter("all")}
-          />
+            <FilterButton
+              label="Best Fit"
+              active={activeFilter === "best-fit"}
+              onClick={() => applyFilter("best-fit")}
+            />
 
-          <FilterButton
-            label="Best Fit"
-            active={activeFilter === "best-fit"}
-            onClick={() => applyFilter("best-fit")}
-          />
+            <FilterButton
+              label="High Match"
+              active={activeFilter === "high-match"}
+              onClick={() => applyFilter("high-match")}
+            />
 
-          <FilterButton
-            label="High Match"
-            active={activeFilter === "high-match"}
-            onClick={() => applyFilter("high-match")}
-          />
+            <FilterButton
+              label="Remote"
+              active={activeFilter === "remote"}
+              onClick={() => applyFilter("remote")}
+            />
 
-          <FilterButton
-            label="Remote"
-            active={activeFilter === "remote"}
-            onClick={() => applyFilter("remote")}
-          />
+            <FilterButton
+              label="Nigeria"
+              active={activeFilter === "nigeria"}
+              onClick={() => applyFilter("nigeria")}
+            />
 
-          <FilterButton
-            label="Nigeria"
-            active={activeFilter === "nigeria"}
-            onClick={() => applyFilter("nigeria")}
-          />
+            <FilterButton
+              label="Low Gap"
+              active={activeFilter === "low-gap"}
+              onClick={() => applyFilter("low-gap")}
+            />
+          </div>
 
-          <FilterButton
-            label="Low Gap"
-            active={activeFilter === "low-gap"}
-            onClick={() => applyFilter("low-gap")}
-          />
-        </div>
-        <section className="mt-8 grid gap-5">
-          {filteredJobs.map((job) => (
+          {filteredJobs.length === 0 ? (
+            <section className="mt-8 rounded-3xl border bg-white p-10 text-center shadow-sm">
+              <Target className="mx-auto h-12 w-12 text-slate-400" />
+              <h2 className="mt-4 text-2xl font-bold text-slate-900">
+                No jobs match this filter
+              </h2>
+              <p className="mt-2 text-slate-600">
+                Try another filter or refresh your recommendations.
+              </p>
+            </section>
+          ) : (
+            <section className="mt-8 grid gap-5">
+              {filteredJobs.map((job) => (
+                <div
+                  key={job.job_id}
+                  className="rounded-3xl border bg-white p-6 shadow-sm"
+                >
+                  <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <Briefcase size={18} />
+                        <p className="text-sm font-semibold uppercase tracking-widest">
+                          Recommended job
+                        </p>
+                      </div>
 
-            <div
-              key={job.job_id}
-              className="rounded-3xl border bg-white p-6 shadow-sm"
-            >
-              <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-blue-700">
-                    <Briefcase size={18} />
-                    <p className="text-sm font-semibold uppercase tracking-widest">
-                      Recommended job
-                    </p>
+                      <h2 className="mt-3 text-2xl font-bold text-slate-900">
+                        {job.title}
+                      </h2>
+
+                      <p className="mt-2 text-slate-600">
+                        {job.company_name || "Company not stated"}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        {job.location_display || job.country || "Location not stated"}
+                        {job.work_type ? ` • ${job.work_type}` : ""}
+                        {job.employment_type ? ` • ${job.employment_type}` : ""}
+                      </p>
+
+                      <p className="mt-4 max-w-4xl leading-7 text-slate-700">
+                        {job.summary}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl bg-blue-50 px-7 py-5 text-center text-blue-700">
+                      <p className="text-4xl font-bold">{job.match_score}%</p>
+                      <p className="mt-1 text-xs font-semibold">Fit Score</p>
+                    </div>
                   </div>
 
-                  <h2 className="mt-3 text-2xl font-bold text-slate-900">
-                    {job.title}
-                  </h2>
+                  <div className="mt-6 grid gap-5 md:grid-cols-2">
+                    <KeywordBox
+                      title="Matched Keywords"
+                      items={job.matched_keywords}
+                      emptyText="No strong matched keywords detected."
+                    />
 
-                  <p className="mt-2 text-slate-600">
-                    {job.company_name || "Company not stated"}
-                  </p>
+                    <KeywordBox
+                      title="Missing Keywords"
+                      items={job.missing_keywords}
+                      emptyText="No major missing keywords detected."
+                    />
+                  </div>
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {job.location_display || job.country || "Location not stated"}
-                    {job.work_type ? ` • ${job.work_type}` : ""}
-                    {job.employment_type ? ` • ${job.employment_type}` : ""}
-                  </p>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Link
+                      href={`/recommended-jobs/${job.job_id}`}
+                      className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+                    >
+                      View Recommendation
+                    </Link>
 
-                  <p className="mt-4 max-w-4xl leading-7 text-slate-700">
-                    {job.summary}
-                  </p>
+                    <Link
+                      href={`/ai-match-score?job_id=${job.job_id}`}
+                      className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Analyze Match
+                    </Link>
+
+                    <Link
+                      href={`/interview-iq?role=${encodeURIComponent(
+                        job.title
+                      )}&company=${encodeURIComponent(job.company_name || "")}`}
+                      className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Practice Interview
+                    </Link>
+                  </div>
                 </div>
-
-                <div className="rounded-3xl bg-blue-50 px-7 py-5 text-center text-blue-700">
-                  <p className="text-4xl font-bold">{job.match_score}%</p>
-                  <p className="mt-1 text-xs font-semibold">Fit Score</p>
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-5 md:grid-cols-2">
-                <KeywordBox
-                  title="Matched Keywords"
-                  items={job.matched_keywords}
-                  emptyText="No strong matched keywords detected."
-                />
-
-                <KeywordBox
-                  title="Missing Keywords"
-                  items={job.missing_keywords}
-                  emptyText="No major missing keywords detected."
-                />
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href={`/recommended-jobs/${job.job_id}`}
-                  className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-                >
-                  View Recommendation
-                </Link>           
-
-                <Link
-                  href={`/ai-match-score?job_id=${job.job_id}`}
-                  className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Analyze Match
-                </Link>
-
-                <Link
-                  href={`/interview-iq?role=${encodeURIComponent(
-                    job.title
-                  )}&company=${encodeURIComponent(job.company_name || "")}`}
-                  className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Practice Interview
-                </Link>
-              </div>
-            </div>
-          ))}
-        </section>
+              ))}
+            </section>
+          )}
+        </>
       )}
     </main>
   );
