@@ -13,6 +13,8 @@ import {
   CheckCircle,
   AlertTriangle,
 } from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+
 
 type RecommendedJob = {
   job_id: string;
@@ -41,18 +43,35 @@ export default function RecommendationDetailPage() {
 
   async function loadRecommendation() {
     try {
-      const response = await fetch("/api/job-recommendation-history", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const {
+        data: { user },
+      } = await supabaseBrowser.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(
+        "/api/job-recommendation-history",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+          }),
+        }
+      );
 
       const data = await response.json();
 
-      const recommendation = (
-        data.recommendations || []
-      ).find((r: RecommendedJob) => r.job_id === jobId);
+      const recommendation =
+        (data.recommendations || []).find(
+          (r: RecommendedJob) =>
+            r.job_id === jobId
+        );
 
       setJob(recommendation || null);
     } catch (error) {
