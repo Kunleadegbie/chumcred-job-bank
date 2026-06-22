@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+
 import {
   AlertCircle,
   Briefcase,
@@ -10,7 +12,6 @@ import {
   RefreshCw,
   UploadCloud,
 } from "lucide-react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type RecommendedJob = {
   job_id: string;
