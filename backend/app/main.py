@@ -917,19 +917,16 @@ def job_recommendations(payload: dict, x_cron_secret: str = Header(default=None)
         verify_cron_secret(x_cron_secret)
 
         user_id = payload.get("user_id")
-        limit = payload.get("limit") or 10
+        limit = payload.get("limit") or 20
 
         if not user_id:
-            return {
-                "status": "error",
-                "message": "user_id is required"
-            }
+            return {"status": "error", "message": "user_id is required"}
 
         supabase = get_supabase()
 
         profile_response = (
             supabase.table("profiles")
-            .select("id,resume_text")
+            .select("id,resume_text,resume_path,resume_name")
             .eq("id", user_id)
             .maybe_single()
             .execute()
@@ -937,11 +934,49 @@ def job_recommendations(payload: dict, x_cron_secret: str = Header(default=None)
 
         profile = profile_response.data or {}
         resume_text = profile.get("resume_text") or ""
+        resume_path = profile.get("resume_path")
+        resume_name = profile.get("resume_name") or resume_path or ""
 
-        if not resume_text.strip():
+        placeholder_signals = [
+            "resume uploaded:",
+            "candidate uploaded a cv",
+            "candidate uploaded a resume",
+            "file type:",
+            "ai job recommendations",
+        ]
+
+        resume_text_is_placeholder = any(
+            signal in resume_text.lower() for signal in placeholder_signals
+        )
+
+        if (not resume_text.strip() or resume_text_is_placeholder) and resume_path:
+            try:
+                file_response = (
+                    supabase.storage
+                    .from_("resumes")
+                    .download(resume_path)
+                )
+
+                extracted_text = extract_resume_text(file_response, resume_name)
+
+                if extracted_text and extracted_text.strip():
+                    resume_text = extracted_text
+
+                    supabase.table("profiles").update({
+                        "resume_text": extracted_text,
+                        "resume_parsed_at": datetime.now(timezone.utc).isoformat(),
+                    }).eq("id", user_id).execute()
+
+            except Exception as extract_error:
+                return {
+                    "status": "error",
+                    "message": f"CV uploaded, but text extraction failed: {str(extract_error)}"
+                }
+
+        if not resume_text.strip() or resume_text_is_placeholder:
             return {
                 "status": "error",
-                "message": "No resume text found. Please upload and extract your resume first."
+                "message": "No usable CV text found. Please upload a readable PDF, DOC, or DOCX CV."
             }
 
         jobs_response = (
@@ -965,20 +1000,15 @@ def job_recommendations(payload: dict, x_cron_secret: str = Header(default=None)
             "recommendations": recommendations,
         }).execute()
 
-        saved = bool(save_response.data)
-
         return {
             "status": "completed",
             "count": len(recommendations),
             "recommendations": recommendations,
-            "saved": saved,
+            "saved": bool(save_response.data),
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "error", "message": str(e)}
 
 @app.post("/tasks/job-recommendation-history")
 def job_recommendation_history(payload: dict, x_cron_secret: str = Header(default=None)):

@@ -213,7 +213,7 @@ def recommend_jobs_for_resume(
             job,
         )
 
-        if score["match_score"] >= 20:
+        if score["match_score"] > 0:
             scored_jobs.append(score)
 
     scored_jobs.sort(
