@@ -9,8 +9,8 @@ import {
   FileText,
   UserCircle,
   LogOut,
-  Sparkles,
   Target,
+  Sparkles,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -80,14 +80,12 @@ export default function DashboardPage() {
       setSavedJobsCount(count || 0);
 
       try {
-        const response = await fetch("/api/job-recommendations", {
+        const response = await fetch("/api/job-recommendation-history", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
           body: JSON.stringify({
             user_id: user.id,
-            limit: 5,
           }),
         });
 
@@ -95,13 +93,14 @@ export default function DashboardPage() {
 
         if (!response.ok || data.status === "error") {
           setRecommendationMessage(
-            data.message || data.error || "Unable to load job recommendations."
+            data.message || data.error || "Unable to load saved recommendations."
           );
         } else {
-          setRecommendations((data.recommendations || []) as RecommendedJob[]);
+          const savedRecommendations = (data.recommendations || []) as RecommendedJob[];
+          setRecommendations(savedRecommendations.slice(0, 5));
         }
       } catch {
-        setRecommendationMessage("Unable to load job recommendations.");
+        setRecommendationMessage("Unable to load saved recommendations.");
       } finally {
         setRecommendationsLoading(false);
       }
@@ -138,7 +137,7 @@ export default function DashboardPage() {
           </h1>
 
           <p className="mt-3 text-slate-600">
-            Manage your saved jobs, applications, resume and profile.
+            Manage your saved jobs, applications, resume and AI career tools.
           </p>
         </div>
 
@@ -204,19 +203,28 @@ export default function DashboardPage() {
               Smart Job Recommendations
             </p>
             <h2 className="mt-2 text-2xl font-bold text-slate-900">
-              Best Fit Jobs
+              Top 5 Best Fit Jobs
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Jobs ranked against your CV using AI keyword and role-fit signals.
+              Saved recommendations ranked against your CV.
             </p>
           </div>
 
-          <Link
-            href="/jobs"
-            className="rounded-xl border px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Browse all jobs
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/recommended-jobs"
+              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              View All Recommendations
+            </Link>
+
+            <Link
+              href="/recommended-jobs?refresh=1"
+              className="rounded-xl border px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Refresh
+            </Link>
+          </div>
         </div>
 
         {recommendationsLoading ? (
@@ -238,14 +246,22 @@ export default function DashboardPage() {
               No recommendations yet
             </h3>
             <p className="mt-2 text-slate-600">
-              Upload your resume so we can recommend the best-fit jobs.
+              Upload your CV and generate recommendations to see your best-fit jobs.
             </p>
-            <Link
-              href="/profile/resume"
-              className="mt-4 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-            >
-              Upload Resume
-            </Link>
+            <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link
+                href="/profile/resume"
+                className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+              >
+                Upload CV
+              </Link>
+              <Link
+                href="/recommended-jobs?refresh=1"
+                className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+              >
+                Generate Recommendations
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="mt-6 grid gap-5">
@@ -256,17 +272,27 @@ export default function DashboardPage() {
               >
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-slate-900">
+                    <div className="flex items-center gap-2 text-blue-700">
+                      <Sparkles size={16} />
+                      <p className="text-xs font-semibold uppercase tracking-widest">
+                        Recommended job
+                      </p>
+                    </div>
+
+                    <h3 className="mt-2 text-xl font-bold text-slate-900">
                       {job.title}
                     </h3>
+
                     <p className="mt-1 text-sm text-slate-600">
                       {job.company_name || "Company not stated"}
                     </p>
+
                     <p className="mt-1 text-sm text-slate-500">
                       {job.location_display || job.country || "Location not stated"}
                       {job.work_type ? ` • ${job.work_type}` : ""}
                       {job.employment_type ? ` • ${job.employment_type}` : ""}
                     </p>
+
                     <p className="mt-3 text-sm leading-6 text-slate-700">
                       {job.summary}
                     </p>
@@ -291,8 +317,15 @@ export default function DashboardPage() {
 
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
-                    href={`/jobs/${job.job_id}`}
+                    href={`/recommended-jobs/${job.job_id}`}
                     className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    View Recommendation
+                  </Link>
+
+                  <Link
+                    href={`/jobs/${job.job_id}`}
+                    className="rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
                   >
                     View Job
                   </Link>
@@ -318,13 +351,13 @@ export default function DashboardPage() {
           <QuickLink href="/saved-jobs" label="Saved Jobs" />
           <QuickLink href="/my-applications" label="My Applications" />
           <QuickLink href="/profile/resume" label="Upload Resume" />
+          <QuickLink href="/recommended-jobs" label="Recommended Jobs" />
           <QuickLink href="/ai-career-coach" label="AI Career Coach" />
           <QuickLink href="/ai-cv-review" label="AI CV Review" />
           <QuickLink href="/interview-iq" label="InterviewIQ" />
           <QuickLink href="/ai-job-search" label="AI Global Job Search" />
           <QuickLink href="/ai-match-score" label="AI Match Score" />
           <QuickLink href="/ai-match-history" label="AI Match History" />
-          <QuickLink href="/recommended-jobs" label="Recommended Jobs" />
         </div>
       </section>
     </main>
