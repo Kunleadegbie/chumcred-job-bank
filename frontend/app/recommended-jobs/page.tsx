@@ -44,7 +44,16 @@ export default function RecommendedJobsPage() {
       }
 
       setUserId(user.id);
-      await loadSavedRecommendations(user.id);
+
+      const params = new URLSearchParams(window.location.search);
+      const shouldRefresh = params.get("refresh") === "1";
+
+      if (shouldRefresh) {
+        await refreshRecommendationsForUser(user.id);
+      } else {
+        await loadSavedRecommendations(user.id);
+      }
+
       setLoading(false);
     }
 
@@ -74,9 +83,7 @@ export default function RecommendedJobsPage() {
     }
   }
 
-  async function refreshRecommendations() {
-    if (!userId) return;
-
+  async function refreshRecommendationsForUser(currentUserId: string) {
     setRefreshing(true);
     setMessage("");
 
@@ -86,7 +93,7 @@ export default function RecommendedJobsPage() {
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
         body: JSON.stringify({
-          user_id: userId,
+          user_id: currentUserId,
           limit: 50,
         }),
       });
@@ -94,7 +101,7 @@ export default function RecommendedJobsPage() {
       const data = await response.json();
 
       if (!response.ok || data.status === "error") {
-        setMessage(data.message || data.error || "Unable to refresh recommended jobs.");
+        setMessage(data.message || data.error || "Unable to generate recommended jobs.");
         return;
       }
 
@@ -103,16 +110,22 @@ export default function RecommendedJobsPage() {
 
       if (recommendations.length === 0) {
         setMessage(
-          "No strong recommendations were generated yet. Please upload or re-extract your CV, then try again."
+          "No recommendations were generated. Please confirm your CV was uploaded, then try again."
         );
       } else {
         setMessage("");
+        window.history.replaceState(null, "", "/recommended-jobs");
       }
     } catch {
-      setMessage("Unable to refresh recommended jobs.");
+      setMessage("Unable to generate recommended jobs.");
     } finally {
       setRefreshing(false);
     }
+  }
+
+  async function refreshRecommendations() {
+    if (!userId) return;
+    await refreshRecommendationsForUser(userId);
   }
 
   if (loading) {
@@ -155,7 +168,7 @@ export default function RecommendedJobsPage() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           >
             <RefreshCw size={16} />
-            {refreshing ? "Refreshing..." : "Refresh Recommendations"}
+            {refreshing ? "Generating..." : "Refresh Recommendations"}
           </button>
         </div>
       </section>
@@ -169,7 +182,7 @@ export default function RecommendedJobsPage() {
               href="/profile/resume"
               className="mt-2 inline-block text-sm font-bold text-amber-900"
             >
-              Upload or extract CV →
+              Upload or update CV →
             </Link>
           </div>
         </div>
@@ -180,12 +193,12 @@ export default function RecommendedJobsPage() {
           <Target className="mx-auto h-12 w-12 text-slate-400" />
 
           <h2 className="mt-4 text-2xl font-bold text-slate-900">
-            No saved recommendations yet
+            No recommended jobs yet
           </h2>
 
           <p className="mx-auto mt-2 max-w-2xl text-slate-600">
-            Upload or re-extract your CV first, then generate best-fit job
-            recommendations based on your skills, experience and role alignment.
+            Upload your CV, then generate best-fit job recommendations based on
+            your skills, experience and target role alignment.
           </p>
 
           <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -208,7 +221,7 @@ export default function RecommendedJobsPage() {
           </div>
 
           <p className="mt-5 text-sm text-slate-500">
-            Tip: If you already uploaded your CV, click Generate Recommendations.
+            After uploading your CV, return here or click Generate Recommended Jobs on the CV page.
           </p>
         </section>
       ) : (

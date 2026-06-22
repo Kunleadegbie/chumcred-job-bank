@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Upload, FileText, Sparkles } from "lucide-react";
+import { Upload, FileText, Sparkles, Briefcase } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export default function ResumeUploadPage() {
@@ -64,9 +64,7 @@ export default function ResumeUploadPage() {
 
     const { error: uploadError } = await supabaseBrowser.storage
       .from("resumes")
-      .upload(filePath, file, {
-        upsert: true,
-      });
+      .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
       setMessage(uploadError.message);
@@ -79,9 +77,10 @@ export default function ResumeUploadPage() {
       .createSignedUrl(filePath, 60 * 60 * 24 * 7);
 
     const resumeText = `
-      Resume file uploaded: ${file.name}.
-      Candidate has uploaded a resume for AI matching.
+      Resume uploaded: ${file.name}.
+      Candidate uploaded a CV for AI job recommendations and AI match scoring.
       File type: ${file.type}.
+      The system should use this uploaded resume for matching, recommendations, interview preparation and career intelligence.
     `;
 
     const { error: profileError } = await supabaseBrowser
@@ -104,7 +103,7 @@ export default function ResumeUploadPage() {
 
     setResumeUrl(signedUrlData?.signedUrl || null);
     setResumeName(file.name);
-    setMessage("Resume uploaded successfully. AI matching can now use this resume.");
+    setMessage("CV uploaded successfully. You can now generate recommended jobs.");
     setUploading(false);
   }
 
@@ -120,12 +119,12 @@ export default function ResumeUploadPage() {
         </p>
 
         <h1 className="mt-3 text-4xl font-bold text-slate-900">
-          Upload Resume
+          Upload CV / Resume
         </h1>
 
         <p className="mt-3 text-slate-600">
-          Upload your latest CV or resume. This will be used for AI job
-          matching.
+          Upload your latest CV. This will be used for AI job recommendations,
+          match scoring and interview preparation.
         </p>
 
         <div className="mt-8 rounded-2xl border border-dashed p-8 text-center">
@@ -155,7 +154,7 @@ export default function ResumeUploadPage() {
           />
 
           {uploading && (
-            <p className="mt-4 text-sm text-blue-700">Uploading resume...</p>
+            <p className="mt-4 text-sm text-blue-700">Uploading CV...</p>
           )}
 
           {message && (
@@ -172,7 +171,7 @@ export default function ResumeUploadPage() {
               <div>
                 <p className="font-semibold text-slate-900">{resumeName}</p>
                 <p className="text-sm text-slate-600">
-                  Current uploaded resume
+                  Current uploaded CV
                 </p>
               </div>
             </div>
@@ -185,16 +184,24 @@ export default function ResumeUploadPage() {
                   rel="noopener noreferrer"
                   className="inline-block rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
                 >
-                  View Resume
+                  View CV
                 </a>
               )}
 
               <Link
-                href="/job-match"
+                href="/recommended-jobs?refresh=1"
                 className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
               >
+                <Briefcase size={16} />
+                Generate Recommended Jobs
+              </Link>
+
+              <Link
+                href="/ai-match-score"
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+              >
                 <Sparkles size={16} />
-                View AI Job Match
+                View AI Match Score
               </Link>
             </div>
           </div>
