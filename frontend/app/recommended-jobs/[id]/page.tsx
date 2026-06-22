@@ -250,7 +250,18 @@ export default function RecommendationDetailPage() {
               className="block w-full rounded-xl border px-5 py-3 text-center font-semibold"
             >
               Practice Interview
+            </Link>   
+            <Link
+              href={`/interview-iq?role=${encodeURIComponent(
+                job.title
+              )}&company=${encodeURIComponent(
+                job.company_name || ""
+              )}&job_id=${job.job_id}&source=recommended`}
+              className="rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Practice Interview
             </Link>
+
 
           </div>
 
