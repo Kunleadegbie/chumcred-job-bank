@@ -28,6 +28,8 @@ type RecommendedJob = {
 
 export default function RecommendedJobsPage() {
   const [jobs, setJobs] = useState<RecommendedJob[]>([]);
+  const [filteredJobs, setFilteredJobs] = useState<RecommendedJob[]>([]);
+  const [activeFilter, setActiveFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
@@ -107,6 +109,7 @@ export default function RecommendedJobsPage() {
 
       const recommendations = (data.recommendations || []) as RecommendedJob[];
       setJobs(recommendations);
+      setFilteredJobs(recommendations);
 
       if (recommendations.length === 0) {
         setMessage(
@@ -127,6 +130,62 @@ export default function RecommendedJobsPage() {
     if (!userId) return;
     await refreshRecommendationsForUser(userId);
   }
+
+  function applyFilter(filter: string) {
+    setActiveFilter(filter);
+
+    switch (filter) {
+      case "best-fit":
+        setFilteredJobs(
+          [...jobs].sort(
+            (a, b) => b.match_score - a.match_score
+          )
+        );
+        break;
+
+      case "high-match":
+        setFilteredJobs(
+          jobs.filter(
+            (job) => job.match_score >= 70
+          )
+        );
+        break;
+
+      case "remote":
+        setFilteredJobs(
+          jobs.filter(
+            (job) =>
+              job.work_type?.toLowerCase().includes("remote")
+          )
+        );
+        break;
+
+      case "nigeria":
+        setFilteredJobs(
+          jobs.filter(
+            (job) =>
+              job.country?.toLowerCase().includes("nigeria") ||
+              job.location_display
+                ?.toLowerCase()
+                .includes("nigeria")
+          )
+        );
+        break;
+
+      case "low-gap":
+        setFilteredJobs(
+          jobs.filter(
+            (job) =>
+              (job.missing_keywords?.length || 0) <= 5
+          )
+        );
+        break;
+
+      default:
+        setFilteredJobs(jobs);
+    }
+  }
+
 
   if (loading) {
     return (
@@ -225,8 +284,47 @@ export default function RecommendedJobsPage() {
           </p>
         </section>
       ) : (
+
+        <div className="mt-8 flex flex-wrap gap-3">
+          <FilterButton
+            label="All"
+            active={activeFilter === "all"}
+            onClick={() => applyFilter("all")}
+          />
+
+          <FilterButton
+            label="Best Fit"
+            active={activeFilter === "best-fit"}
+            onClick={() => applyFilter("best-fit")}
+          />
+
+          <FilterButton
+            label="High Match"
+            active={activeFilter === "high-match"}
+            onClick={() => applyFilter("high-match")}
+          />
+
+          <FilterButton
+            label="Remote"
+            active={activeFilter === "remote"}
+            onClick={() => applyFilter("remote")}
+          />
+
+          <FilterButton
+            label="Nigeria"
+            active={activeFilter === "nigeria"}
+            onClick={() => applyFilter("nigeria")}
+          />
+
+          <FilterButton
+            label="Low Gap"
+            active={activeFilter === "low-gap"}
+            onClick={() => applyFilter("low-gap")}
+          />
+        </div>
         <section className="mt-8 grid gap-5">
-          {jobs.map((job) => (
+          {filteredJobs.map((job) => (
+
             <div
               key={job.job_id}
               className="rounded-3xl border bg-white p-6 shadow-sm"
@@ -339,5 +437,28 @@ function KeywordBox({
         <p className="mt-3 text-sm text-slate-500">{emptyText}</p>
       )}
     </div>
+  );
+}
+
+function FilterButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        active
+          ? "rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+          : "rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+      }
+    >
+      {label}
+    </button>
   );
 }
