@@ -349,15 +349,16 @@ ${round.answer || "Not answered."}`
           const roleFromUrl = params.get("role");
           const companyFromUrl = params.get("company");
           const modeFromUrl = params.get("mode");
+          const sourceFromUrl = params.get("source");
 
-          if (modeFromUrl === "multi") setMode("multi");
+          if (modeFromUrl === "multi" || sourceFromUrl === "recommended") {
+            setMode("multi");
+          }
 
           if (jobId) {
             await loadJobContext(jobId);
           } else if (roleFromUrl) {
-            setTargetRole(
-              companyFromUrl ? `${roleFromUrl} at ${companyFromUrl}` : roleFromUrl
-            );
+            setTargetRole(roleFromUrl);
             setCompanyName(companyFromUrl || "");
           }
         }
@@ -497,6 +498,7 @@ ${round.answer || "Not answered."}`
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        user_id: userId,
         target_role: targetRole,
         company_name: companyName,
         job_context: jobContext,
