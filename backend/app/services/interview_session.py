@@ -39,20 +39,21 @@ AI Match Score:
 {match_context.get("match_score", "")}
 
 Matched Keywords:
-{json.dumps(match_context.get("matched_keywords", []))}
+{json.dumps(match_context.get("matched_keywords", []), ensure_ascii=False)}
 
 Missing Keywords:
-{json.dumps(match_context.get("missing_keywords", []))}
+{json.dumps(match_context.get("missing_keywords", []), ensure_ascii=False)}
 
 Strengths:
-{json.dumps(match_context.get("strengths", []))}
+{json.dumps(match_context.get("strengths", []), ensure_ascii=False)}
 
 Gaps:
-{json.dumps(match_context.get("gaps", []))}
+{json.dumps(match_context.get("gaps", []), ensure_ascii=False)}
 
 Improvement Actions:
-{json.dumps(match_context.get("improvement_actions", []))}
+{json.dumps(match_context.get("improvement_actions", []), ensure_ascii=False)}
 """
+
 
 def clean_json_response(content: str) -> str:
     content = (content or "").strip()
@@ -69,42 +70,64 @@ def clean_json_response(content: str) -> str:
     return content
 
 
-prompt = f"""
-You are a world-class recruiter.
+def generate_first_question(
+    target_role: str,
+    company_name: str | None = None,
+    job_context: dict | None = None,
+    match_context: dict | None = None,
+) -> str:
+    context = build_session_context(
+        target_role=target_role,
+        company_name=company_name,
+        job_context=job_context,
+        match_context=match_context,
+    )
+
+    prompt = f"""
+You are a world-class recruiter conducting a realistic job interview.
 
 Generate the FIRST interview question.
 
 Use:
-
 1. Job title
 2. Company
 3. Job description
 4. Requirements
-5. Missing skills
-6. Candidate gaps
+5. Responsibilities
+6. Missing skills
+7. Candidate gaps
+8. AI match score signals, if available
 
 Priority:
-
 - If major gaps exist, test those gaps.
 - If match score is high, test practical experience.
 - Make the question realistic and role-specific.
-- Avoid generic interview questions.
+- Avoid generic questions like "Tell me about yourself."
+- Ask only one question.
 
 Interview Context:
-
 {context}
 
 Return ONLY ONE interview question.
 """
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        temperature=0.7,
-        max_tokens=120,
-        messages=[{"role": "user", "content": prompt}],
-    )
 
-    return response.choices[0].message.content.strip()
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            temperature=0.7,
+            max_tokens=160,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
+        question = response.choices[0].message.content.strip()
+
+        if not question:
+            return f"What relevant experience do you have for the {target_role} role?"
+
+        return question
+
+    except Exception:
+        return f"What relevant experience do you have for the {target_role} role?"
 
 def generate_follow_up_question(
     target_role: str,
@@ -113,89 +136,153 @@ def generate_follow_up_question(
     round_number: int,
     company_name: str | None = None,
     job_context: dict | None = None,
+    match_context: dict | None = None,
     previous_rounds: list[dict] | None = None,
 ) -> str:
+    """
+    Generates the next adaptive interview question.
+
+    The next question is based on:
+    - Job description
+    - Candidate's previous answer
+    - Previous interview rounds
+    - Missing skills
+    - AI Match Score gaps
+    """
+
     previous_rounds = previous_rounds or []
-    context = build_session_context(target_role, company_name, job_context)
 
-    prompt = f"""
-You are a senior recruiter conducting an adaptive interview.
-
-This is round {round_number} of {MAX_ROUNDS}.
-
-Your next question must:
-
-1. Analyze the candidate's previous answer.
-2. Identify weaknesses.
-3. Probe deeper into missing skills.
-4. Test real experience.
-5. Verify claims made by the candidate.
-
-Interview Context:
-
-{context}
-
-Previous Question:
-{previous_question}
-
-Candidate Answer:
-{candidate_answer}
-
-Previous Rounds:
-{json.dumps(previous_rounds, ensure_ascii=False)}
-
-Do NOT repeat previous questions.
-
-Return ONLY ONE next interview question.
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        temperature=0.75,
-        max_tokens=150,
-        messages=[{"role": "user", "content": prompt}],
+    context = build_session_context(
+        target_role=target_role,
+        company_name=company_name,
+        job_context=job_context,
+        match_context=match_context,
     )
 
-    return response.choices[0].message.content.strip()
+    prompt = f"""
+You are an experienced Executive Recruiter conducting a structured interview.
 
+This is interview round {round_number} of {MAX_ROUNDS}.
+
+Your job is NOT to ask random interview questions.
+
+Instead:
+
+1. Carefully analyse the candidate's previous answer.
+2. Identify strengths.
+3. Identify weaknesses.
+4. Probe deeper into missing skills.
+5. Verify claims made by the candidate.
+6. Ask behavioural questions where appropriate.
+7. Ask technical questions where appropriate.
+8. Ask scenario-based questions whenever possible.
+9. Do NOT repeat previous questions.
+10. Ask ONLY ONE question.
+
+Interview Context
+-----------------
+{context}
+
+Previous Question
+-----------------
+{previous_question}
+
+Candidate Answer
+-----------------
+{candidate_answer}
+
+Previous Interview History
+--------------------------
+{json.dumps(previous_rounds, ensure_ascii=False, indent=2)}
+
+Examples of good follow-up behaviour:
+
+• Candidate claims leadership experience
+→ Ask for measurable achievements.
+
+• Candidate lacks SQL
+→ Ask how they would solve a reporting problem without SQL.
+
+• Candidate lacks stakeholder management
+→ Ask about handling conflicting stakeholders.
+
+• Candidate claims project management
+→ Ask about deadlines, risks and lessons learned.
+
+Return ONLY ONE interview question.
+"""
+
+    try:
+
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            temperature=0.75,
+            max_tokens=180,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+        )
+
+        question = response.choices[0].message.content.strip()
+
+        if not question:
+
+            return (
+                f"What has been your biggest challenge working as a "
+                f"{target_role}, and how did you overcome it?"
+            )
+
+        return question
+
+    except Exception:
+
+        return (
+            f"What has been your biggest challenge working as a "
+            f"{target_role}, and how did you overcome it?"
+        )
 
 def generate_final_assessment(
     target_role: str,
     company_name: str | None = None,
     job_context: dict | None = None,
+    match_context: dict | None = None,
     rounds: list[dict] | None = None,
 ) -> dict:
     rounds = rounds or []
-    context = build_session_context(target_role, company_name, job_context)
+
+    context = build_session_context(
+        target_role=target_role,
+        company_name=company_name,
+        job_context=job_context,
+        match_context=match_context,
+    )
 
     prompt = f"""
-"""
-You are an executive recruiter.
+You are an executive recruiter and interview assessor.
 
-Assess:
+Assess this completed multi-round interview.
 
+Evaluate the candidate against:
 1. Communication
 2. Technical competence
 3. Confidence
 4. Problem solving
 5. Role fit
+6. Job requirements
+7. Responsibilities
+8. Missing keywords
+9. AI match gaps
 
-Compare the candidate against:
-
-- Job requirements
-- Responsibilities
-- Missing keywords
-- Match gaps
-
-Be realistic and evidence-based.
-"""
-Assess this multi-round interview.
+Be realistic, evidence-based, and fair.
 
 Interview Context:
 {context}
 
 Interview Rounds:
-{json.dumps(rounds, ensure_ascii=False)}
+{json.dumps(rounds, ensure_ascii=False, indent=2)}
 
 Return ONLY valid JSON.
 
@@ -220,19 +307,20 @@ Required JSON format:
 }}
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        temperature=0.2,
-        max_tokens=700,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    content = response.choices[0].message.content.strip()
-    cleaned_content = clean_json_response(content)
-
     try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            temperature=0.2,
+            max_tokens=900,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        content = response.choices[0].message.content.strip()
+        cleaned_content = clean_json_response(content)
+
         return json.loads(cleaned_content)
-    except Exception:
+
+    except Exception as error:
         return {
             "overall_score": 0,
             "communication_score": 0,
@@ -240,8 +328,8 @@ Required JSON format:
             "confidence_score": 0,
             "problem_solving_score": 0,
             "role_fit_score": 0,
-            "recommendation": "Assessment could not be parsed.",
+            "recommendation": "Assessment could not be completed.",
             "strengths": "",
             "improvements": "",
-            "final_feedback": cleaned_content,
+            "final_feedback": str(error),
         }
