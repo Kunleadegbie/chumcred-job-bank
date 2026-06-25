@@ -62,18 +62,6 @@ type MultiRoundSession = {
   created_at: string;
 };
 
-type MultiRoundDraft = {
-  targetRole: string;
-  companyName: string;
-  jobContext: JobContext | null;
-  question: string;
-  answer: string;
-  rounds: InterviewRound[];
-  currentRound: number;
-  maxRounds: number;
-  finalAssessment: FinalAssessment | null;
-};
-
 export default function InterviewIQPage() {
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
@@ -100,9 +88,49 @@ export default function InterviewIQPage() {
   const [reviewing, setReviewing] = useState(false);
   const [message, setMessage] = useState("");
 
-  function getDraftKey(currentUserId: string) {
-    return `interviewiq_multi_draft_${currentUserId}`;
-  }
+  useEffect(() => {
+    async function init() {
+      try {
+        const { data: userData } = await supabaseBrowser.auth.getUser();
+        const user = userData.user;
+
+        if (!user) {
+          window.location.href = "/login";
+          return;
+        }
+
+        setUserId(user.id);
+
+        const params = new URLSearchParams(window.location.search);
+        const jobId = params.get("job_id");
+        const roleFromUrl = params.get("role");
+        const companyFromUrl = params.get("company");
+        const modeFromUrl = params.get("mode");
+        const sourceFromUrl = params.get("source");
+
+        if (modeFromUrl === "multi" || sourceFromUrl === "recommended") {
+          setMode("multi");
+        }
+
+        if (jobId) {
+          await loadJobContext(jobId);
+        } else if (roleFromUrl) {
+          setTargetRole(roleFromUrl);
+          setCompanyName(companyFromUrl || "");
+        }
+
+        await loadSessions(user.id);
+        await loadMultiRoundSessions(user.id);
+      } catch (error) {
+        console.error(error);
+        setMessage("InterviewIQ loaded with limited history. You can continue.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    init();
+  }, []);
 
   async function loadSessions(currentUserId: string) {
     const { data } = await supabaseBrowser
@@ -116,19 +144,257 @@ export default function InterviewIQPage() {
   }
 
   async function loadMultiRoundSessions(currentUserId: string) {
-    const { data, error } = await supabaseBrowser
+    const { data } = await supabaseBrowser
       .from("multi_round_interview_sessions")
       .select("*")
       .eq("user_id", currentUserId)
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (error) {
-      console.error("Multi-round sessions load error:", error);
+    setMultiSessions((data || []) as MultiRoundSession[]);
+  }
+
+  async function loadJobContext(jobId: string) {
+    const { data } = await supabaseBrowser
+      .from("jobs")
+      .select("id,title,company_name,description,requirements,responsibilities")
+      .eq("id", jobId)
+      .maybeSingle();
+
+    if (data) {
+      const job = data as JobContext;
+      setJobContext(job);
+      setTargetRole(job.title || "Job Interview");
+      setCompanyName(job.company_name || "");
+    }
+  }
+
+  function resetInterview() {
+    setQuestion("");
+    setAnswer("");
+    setFeedback("");
+    setScore(null);
+    setRounds([]);
+    setCurrentRound(0);
+    setFinalAssessment(null);
+    setMessage("");
+  }
+
+  async function startSingleInterview() {
+    if (!userId || !targetRole.trim()) return;
+
+    setStarting(true);
+    setMessage("");
+    setQuestion("");
+    setAnswer("");
+    setFeedback("");
+    setScore(null);
+
+    try {
+      const response = await fetch("/api/interview-iq/question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          target_role: targetRole,
+          company_name: companyName,
+          job_context: jobContext,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to generate question.");
+        return;
+      }
+
+      setQuestion(data.question || "");
+    } catch {
+      setMessage("Unable to generate question.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function submitSingleAnswer() {
+    if (!userId || !targetRole || !question || !answer.trim()) {
+      setMessage("Please enter your answer before submitting.");
       return;
     }
 
-    setMultiSessions((data || []) as MultiRoundSession[]);
+    setReviewing(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/interview-iq/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          target_role: targetRole,
+          question,
+          answer,
+          job_context: jobContext,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to review answer.");
+        return;
+      }
+
+      setFeedback(data.review?.feedback || "");
+      setScore(data.review?.score || 0);
+      await loadSessions(userId);
+    } catch {
+      setMessage("Unable to review answer.");
+    } finally {
+      setReviewing(false);
+    }
+  }
+
+  async function startMultiRoundInterview() {
+    if (!userId || !targetRole.trim()) return;
+
+    setStarting(true);
+    setMessage("");
+    setQuestion("");
+    setAnswer("");
+    setRounds([]);
+    setCurrentRound(0);
+    setFinalAssessment(null);
+
+    try {
+      const response = await fetch("/api/interview-iq/start-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          target_role: targetRole,
+          company_name: companyName,
+          job_context: jobContext,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to start interview.");
+        return;
+      }
+
+      setQuestion(data.question || "");
+      setRounds((data.rounds || []) as InterviewRound[]);
+      setCurrentRound(data.round || 1);
+      setMaxRounds(data.max_rounds || 5);
+    } catch {
+      setMessage("Unable to start interview.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function submitMultiRoundAnswer() {
+    if (!answer.trim()) {
+      setMessage("Please enter your answer before moving to the next round.");
+      return;
+    }
+
+    setReviewing(true);
+    setMessage("");
+
+    try {
+      if (currentRound >= maxRounds) {
+        const completedRounds = [...rounds];
+
+        completedRounds[completedRounds.length - 1] = {
+          ...completedRounds[completedRounds.length - 1],
+          answer,
+        };
+
+        const response = await fetch("/api/interview-iq/end-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userId,
+            target_role: targetRole,
+            company_name: companyName,
+            job_context: jobContext,
+            rounds: completedRounds,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.status === "error") {
+          setMessage(data.message || data.error || "Unable to end interview.");
+          return;
+        }
+
+        setRounds(completedRounds);
+        setFinalAssessment(data.assessment || null);
+        setQuestion("");
+        setAnswer("");
+        await loadMultiRoundSessions(userId);
+        return;
+      }
+
+      const response = await fetch("/api/interview-iq/next-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          target_role: targetRole,
+          company_name: companyName,
+          job_context: jobContext,
+          rounds,
+          answer,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to generate next question.");
+        return;
+      }
+
+      setRounds((data.rounds || []) as InterviewRound[]);
+      setCurrentRound(data.round || currentRound + 1);
+      setQuestion(data.question || "");
+      setAnswer("");
+    } catch {
+      setMessage("Unable to continue interview.");
+    } finally {
+      setReviewing(false);
+    }
+  }
+
+  async function deleteMultiRoundSession(sessionId: string) {
+    if (!userId) return;
+
+    const confirmed = window.confirm(
+      "Delete this saved multi-round interview permanently?"
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabaseBrowser
+      .from("multi_round_interview_sessions")
+      .delete()
+      .eq("id", sessionId)
+      .eq("user_id", userId);
+
+    if (error) {
+      setMessage(error.message || "Unable to delete saved interview.");
+      return;
+    }
+
+    await loadMultiRoundSessions(userId);
+    setMessage("Saved multi-round interview deleted.");
   }
 
   function createMultiRoundPdf(
@@ -205,10 +471,6 @@ ${round.answer || "Not answered."}`
     addText("Improvements", assessment.improvements || "");
     addText("Final Feedback", assessment.final_feedback || "");
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("Generated by Chumcred InterviewIQ | jobs.chumcred.com", margin, 285);
-
     doc.save(`Multi_Round_InterviewIQ_Report_${Date.now()}.pdf`);
   }
 
@@ -228,373 +490,6 @@ ${round.answer || "Not answered."}`
       session.target_role,
       session.company_name
     );
-  }
-
-  function restoreDraft(currentUserId: string) {
-    try {
-      const savedDraft = localStorage.getItem(getDraftKey(currentUserId));
-
-      if (!savedDraft) return;
-
-      const draft = JSON.parse(savedDraft) as MultiRoundDraft;
-
-      if (!draft.rounds || draft.rounds.length === 0) return;
-
-      setMode("multi");
-      setTargetRole(draft.targetRole || "Business Analyst");
-      setCompanyName(draft.companyName || "");
-      setJobContext(draft.jobContext || null);
-      setQuestion(draft.question || "");
-      setAnswer(draft.answer || "");
-      setRounds(draft.rounds || []);
-      setCurrentRound(draft.currentRound || 1);
-      setMaxRounds(draft.maxRounds || 5);
-      setFinalAssessment(draft.finalAssessment || null);
-      setMessage("Your previous multi-round interview draft was restored.");
-    } catch (error) {
-      console.error("Draft restore error:", error);
-    }
-  }
-
-  function saveDraft() {
-    if (!userId || mode !== "multi") return;
-    if (!question && rounds.length === 0 && !finalAssessment) return;
-
-    const draft: MultiRoundDraft = {
-      targetRole,
-      companyName,
-      jobContext,
-      question,
-      answer,
-      rounds,
-      currentRound,
-      maxRounds,
-      finalAssessment,
-    };
-
-    localStorage.setItem(getDraftKey(userId), JSON.stringify(draft));
-  }
-
-  function clearDraft() {
-    if (userId) {
-      localStorage.removeItem(getDraftKey(userId));
-    }
-
-    setQuestion("");
-    setAnswer("");
-    setRounds([]);
-    setCurrentRound(0);
-    setFinalAssessment(null);
-    setMessage("Multi-round interview draft cleared.");
-  }
-
-  async function deleteMultiRoundSession(sessionId: string) {
-    if (!userId) return;
-
-    const confirmed = window.confirm(
-      "Delete this saved multi-round interview permanently?"
-    );
-
-    if (!confirmed) return;
-
-    const { error } = await supabaseBrowser
-      .from("multi_round_interview_sessions")
-      .delete()
-      .eq("id", sessionId)
-      .eq("user_id", userId);
-
-    if (error) {
-      setMessage(error.message || "Unable to delete saved interview.");
-      return;
-    }
-
-    await loadMultiRoundSessions(userId);
-    setMessage("Saved multi-round interview deleted.");
-  }
-
-  async function loadJobContext(jobId: string) {
-    const { data } = await supabaseBrowser
-      .from("jobs")
-      .select("id,title,company_name,description,requirements,responsibilities")
-      .eq("id", jobId)
-      .maybeSingle();
-
-    if (data) {
-      const job = data as JobContext;
-      setJobContext(job);
-      setCompanyName(job.company_name || "");
-
-      setTargetRole(
-        job.company_name
-          ? `${job.title || "Job"} at ${job.company_name}`
-          : job.title || "Job Interview"
-      );
-    }
-  }
-
-  useEffect(() => {
-    async function init() {
-      try {
-        const { data: userData } = await supabaseBrowser.auth.getUser();
-        const user = userData.user;
-
-        if (!user) {
-          window.location.href = "/login";
-          return;
-        }
-
-        if (typeof window !== "undefined") {
-          const params = new URLSearchParams(window.location.search);
-          const jobId = params.get("job_id");
-          const roleFromUrl = params.get("role");
-          const companyFromUrl = params.get("company");
-          const modeFromUrl = params.get("mode");
-          const sourceFromUrl = params.get("source");
-
-          if (modeFromUrl === "multi" || sourceFromUrl === "recommended") {
-            setMode("multi");
-          }
-
-          if (jobId) {
-            await loadJobContext(jobId);
-          } else if (roleFromUrl) {
-            setTargetRole(roleFromUrl);
-            setCompanyName(companyFromUrl || "");
-          }
-        }
-
-        setUserId(user.id);
-
-        try {
-          await loadSessions(user.id);
-          await loadMultiRoundSessions(user.id);
-          restoreDraft(user.id);
-        } catch (sessionError) {
-          console.error("InterviewIQ sessions load error:", sessionError);
-        }
-      } catch (error) {
-        console.error("InterviewIQ Init Error:", error);
-        setMessage("InterviewIQ loaded with limited history. You can continue.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    init();
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-      saveDraft();
-    }
-  }, [
-    loading,
-    mode,
-    userId,
-    targetRole,
-    companyName,
-    jobContext,
-    question,
-    answer,
-    rounds,
-    currentRound,
-    maxRounds,
-    finalAssessment,
-  ]);
-
-  function resetInterview() {
-    setQuestion("");
-    setAnswer("");
-    setFeedback("");
-    setScore(null);
-    setRounds([]);
-    setCurrentRound(0);
-    setFinalAssessment(null);
-    setMessage("");
-
-    if (userId) {
-      localStorage.removeItem(getDraftKey(userId));
-    }
-  }
-
-  async function startSingleInterview() {
-    if (!userId || !targetRole.trim()) return;
-
-    setStarting(true);
-    setMessage("");
-    setQuestion("");
-    setAnswer("");
-    setFeedback("");
-    setScore(null);
-
-    const response = await fetch("/api/interview-iq/question", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        target_role: targetRole,
-        company_name: companyName,
-        job_context: jobContext,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || data.status === "error") {
-      setMessage(data.message || data.error || "Unable to generate question.");
-      setStarting(false);
-      return;
-    }
-
-    setQuestion(data.question || "");
-    setStarting(false);
-  }
-
-  async function submitSingleAnswer() {
-    if (!userId || !targetRole || !question || !answer.trim()) {
-      setMessage("Please enter your answer before submitting.");
-      return;
-    }
-
-    setReviewing(true);
-    setMessage("");
-
-    const response = await fetch("/api/interview-iq/review", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        target_role: targetRole,
-        question,
-        answer,
-        job_context: jobContext,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || data.status === "error") {
-      setMessage(data.message || data.error || "Unable to review answer.");
-      setReviewing(false);
-      return;
-    }
-
-    setFeedback(data.review?.feedback || "");
-    setScore(data.review?.score || 0);
-    await loadSessions(userId);
-    setReviewing(false);
-  }
-
-  async function startMultiRoundInterview() {
-    if (!targetRole.trim()) return;
-
-    setStarting(true);
-    setMessage("");
-    setAnswer("");
-    setRounds([]);
-    setFinalAssessment(null);
-
-    const response = await fetch("/api/interview-iq/start-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        target_role: targetRole,
-        company_name: companyName,
-        job_context: jobContext,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || data.status === "error") {
-      setMessage(data.message || data.error || "Unable to start interview.");
-      setStarting(false);
-      return;
-    }
-
-    setQuestion(data.question || "");
-    setRounds(data.rounds || []);
-    setCurrentRound(data.round || 1);
-    setMaxRounds(data.max_rounds || 5);
-    setStarting(false);
-  }
-
-  async function submitMultiRoundAnswer() {
-    if (!answer.trim()) {
-      setMessage("Please enter your answer before moving to the next round.");
-      return;
-    }
-
-    setReviewing(true);
-    setMessage("");
-
-    if (currentRound >= maxRounds) {
-      const completedRounds = [...rounds];
-      completedRounds[completedRounds.length - 1] = {
-        ...completedRounds[completedRounds.length - 1],
-        answer,
-      };
-
-      const response = await fetch("/api/interview-iq/end-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          target_role: targetRole,
-          company_name: companyName,
-          job_context: jobContext,
-          rounds: completedRounds,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || data.status === "error") {
-        setMessage(data.message || data.error || "Unable to end interview.");
-        setReviewing(false);
-        return;
-      }
-
-      setRounds(completedRounds);
-      setFinalAssessment(data.assessment || null);
-      setQuestion("");
-      setAnswer("");
-
-      if (userId) {
-        localStorage.removeItem(getDraftKey(userId));
-        await loadMultiRoundSessions(userId);
-      }
-
-      setReviewing(false);
-      return;
-    }
-
-    const response = await fetch("/api/interview-iq/next-question", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        target_role: targetRole,
-        company_name: companyName,
-        job_context: jobContext,
-        rounds,
-        answer,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || data.status === "error") {
-      setMessage(data.message || data.error || "Unable to generate next question.");
-      setReviewing(false);
-      return;
-    }
-
-    setRounds(data.rounds || []);
-    setCurrentRound(data.round || currentRound + 1);
-    setQuestion(data.question || "");
-    setAnswer("");
-    setReviewing(false);
   }
 
   if (loading) {
@@ -627,15 +522,8 @@ ${round.answer || "Not answered."}`
             </h1>
 
             <p className="mt-3 max-w-3xl text-slate-300">
-              Choose single-question practice or a premium multi-round adaptive interview.
+              Practice realistic job interviews based on your role, company and job context.
             </p>
-
-            <Link
-              href="/interview-iq/video"
-              className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-            >
-              Open Premium Video InterviewIQ
-            </Link>
           </div>
         </div>
       </section>
@@ -691,15 +579,6 @@ ${round.answer || "Not answered."}`
           >
             Multi-Round InterviewIQ
           </button>
-
-          {mode === "multi" && rounds.length > 0 && (
-            <button
-              onClick={clearDraft}
-              className="rounded-xl border border-red-200 px-5 py-3 font-semibold text-red-700 hover:bg-red-50"
-            >
-              Clear Current Draft
-            </button>
-          )}
         </div>
       </section>
 
