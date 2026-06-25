@@ -112,6 +112,7 @@ export default function InterviewIQPage() {
 
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [multiSessions, setMultiSessions] = useState<MultiRoundSession[]>([]);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -257,9 +258,7 @@ export default function InterviewIQPage() {
 
       if (!response.ok || data.status === "error") return {};
 
-      const latest = data.history?.[0];
-
-      return latest?.result || {};
+      return data.history?.[0]?.result || {};
     } catch {
       return {};
     }
@@ -332,6 +331,23 @@ export default function InterviewIQPage() {
     setCurrentRound(0);
     setFinalAssessment(null);
     setMessage("");
+  }
+
+  function retakeInterview(session: MultiRoundSession) {
+    setMode("multi");
+    setTargetRole(session.target_role || "Job Interview");
+    setCompanyName(session.company_name || "");
+    setJobContext(session.job_context || null);
+    setSelectedJobId(session.job_context?.id || "");
+    setQuestion("");
+    setAnswer("");
+    setFeedback("");
+    setScore(null);
+    setRounds([]);
+    setCurrentRound(0);
+    setFinalAssessment(null);
+    setMessage("Interview setup restored. Click Start Multi-Round Interview to retake.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function startSingleInterview() {
@@ -548,6 +564,7 @@ export default function InterviewIQPage() {
     }
 
     await loadMultiRoundSessions(userId);
+    setExpandedSessionId(null);
     setMessage("Saved multi-round interview deleted.");
   }
 
@@ -724,27 +741,13 @@ ${round.answer || "Not answered."}`
           <p className="mt-4 text-slate-700">{readiness.summary}</p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <ScoreCard
-              title="Interview Success Probability"
-              value={`${readiness.success_probability}%`}
-            />
-            <ScoreCard
-              title="Missing Keywords"
-              value={`${readiness.missing_keywords.length}`}
-            />
+            <ScoreCard title="Interview Success Probability" value={`${readiness.success_probability}%`} />
+            <ScoreCard title="Missing Keywords" value={`${readiness.missing_keywords.length}`} />
           </div>
 
           <div className="mt-6 grid gap-5 md:grid-cols-2">
-            <KeywordPanel
-              title="Matched Keywords"
-              items={readiness.matched_keywords}
-              type="positive"
-            />
-            <KeywordPanel
-              title="Missing Keywords"
-              items={readiness.missing_keywords}
-              type="warning"
-            />
+            <KeywordPanel title="Matched Keywords" items={readiness.matched_keywords} type="positive" />
+            <KeywordPanel title="Missing Keywords" items={readiness.missing_keywords} type="warning" />
           </div>
 
           <div className="mt-6 rounded-2xl bg-slate-50 p-5">
@@ -931,9 +934,7 @@ ${round.answer || "Not answered."}`
               />
 
               <button
-                onClick={
-                  mode === "single" ? submitSingleAnswer : submitMultiRoundAnswer
-                }
+                onClick={mode === "single" ? submitSingleAnswer : submitMultiRoundAnswer}
                 disabled={reviewing}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
               >
@@ -1050,49 +1051,136 @@ ${round.answer || "Not answered."}`
             Previous Multi-Round Interviews
           </h2>
 
-          <div className="mt-5 space-y-4">
-            {multiSessions.map((session) => (
-              <div
-                key={session.id}
-                className="rounded-3xl border bg-white p-6 shadow-sm"
-              >
-                <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
-                  {session.target_role || "Multi-Round Interview"}
-                </p>
+          <div className="mt-5 space-y-5">
+            {multiSessions.map((session) => {
+              const isOpen = expandedSessionId === session.id;
+              const assessment = session.assessment || {};
+              const overallScore = assessment.overall_score || 0;
 
-                <h3 className="mt-2 text-xl font-bold text-slate-900">
-                  Overall Score: {session.assessment?.overall_score || 0}%
-                </h3>
+              return (
+                <div
+                  key={session.id}
+                  className="rounded-3xl border bg-white p-6 shadow-sm"
+                >
+                  <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+                        Completed Interview
+                      </p>
 
-                <p className="mt-2 text-slate-600">
-                  {session.company_name || "General Interview"}
-                </p>
+                      <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                        {session.target_role || "Multi-Round Interview"}
+                      </h3>
 
-                <p className="mt-2 text-sm text-slate-500">
-                  {session.created_at
-                    ? new Date(session.created_at).toLocaleString()
-                    : ""}
-                </p>
+                      <p className="mt-1 text-slate-600">
+                        {session.company_name || "General Interview"}
+                      </p>
 
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    onClick={() => downloadSavedMultiRoundReport(session)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
-                  >
-                    <Download size={16} />
-                    Download Report
-                  </button>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {session.created_at
+                          ? new Date(session.created_at).toLocaleString()
+                          : "Date not available"}
+                      </p>
 
-                  <button
-                    onClick={() => deleteMultiRoundSession(session.id)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-3 font-semibold text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 size={16} />
-                    Delete
-                  </button>
+                      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
+                        <span className="font-semibold">Recommendation: </span>
+                        {assessment.recommendation || "Not available"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl bg-blue-50 px-6 py-5 text-center text-blue-700">
+                      <p className="text-4xl font-bold">{overallScore}%</p>
+                      <p className="text-xs font-semibold">Overall Score</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 md:grid-cols-5">
+                    <ScoreBox title="Communication" value={assessment.communication_score} />
+                    <ScoreBox title="Technical" value={assessment.technical_score} />
+                    <ScoreBox title="Confidence" value={assessment.confidence_score} />
+                    <ScoreBox title="Problem Solving" value={assessment.problem_solving_score} />
+                    <ScoreBox title="Role Fit" value={assessment.role_fit_score} />
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      onClick={() =>
+                        setExpandedSessionId(isOpen ? null : session.id)
+                      }
+                      className="rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-blue-700"
+                    >
+                      {isOpen ? "Hide Report" : "View Report"}
+                    </button>
+
+                    <button
+                      onClick={() => downloadSavedMultiRoundReport(session)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
+                    >
+                      <Download size={16} />
+                      Download PDF
+                    </button>
+
+                    <button
+                      onClick={() => retakeInterview(session)}
+                      className="rounded-xl border px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Retake Interview
+                    </button>
+
+                    <button
+                      onClick={() => deleteMultiRoundSession(session.id)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-3 font-semibold text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 size={16} />
+                      Delete
+                    </button>
+                  </div>
+
+                  {isOpen && (
+                    <div className="mt-6 space-y-6 border-t pt-6">
+                      <div className="grid gap-5 md:grid-cols-3">
+                        <TextBox title="Strengths" content={assessment.strengths} />
+                        <TextBox title="Improvements" content={assessment.improvements} />
+                        <TextBox title="Final Feedback" content={assessment.final_feedback} />
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 p-5">
+                        <h4 className="text-lg font-bold text-slate-900">
+                          Questions and Answers
+                        </h4>
+
+                        <div className="mt-4 space-y-4">
+                          {(session.rounds || []).map((round) => (
+                            <div
+                              key={round.round}
+                              className="rounded-2xl bg-white p-5"
+                            >
+                              <p className="text-sm font-semibold text-blue-700">
+                                Round {round.round}
+                              </p>
+
+                              <p className="mt-2 font-bold text-slate-900">
+                                Question
+                              </p>
+                              <p className="mt-1 text-sm leading-6 text-slate-700">
+                                {round.question || "Question not available."}
+                              </p>
+
+                              <p className="mt-4 font-bold text-slate-900">
+                                Candidate Answer
+                              </p>
+                              <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">
+                                {round.answer || "No answer recorded."}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
