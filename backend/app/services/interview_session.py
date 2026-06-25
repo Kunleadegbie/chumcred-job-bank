@@ -11,8 +11,10 @@ def build_session_context(
     target_role: str,
     company_name: str | None = None,
     job_context: dict | None = None,
+    match_context: dict | None = None,
 ) -> str:
     job_context = job_context or {}
+    match_context = match_context or {}
 
     return f"""
 Target Role:
@@ -32,8 +34,25 @@ Requirements:
 
 Responsibilities:
 {job_context.get("responsibilities", "")}
-"""
 
+AI Match Score:
+{match_context.get("match_score", "")}
+
+Matched Keywords:
+{json.dumps(match_context.get("matched_keywords", []))}
+
+Missing Keywords:
+{json.dumps(match_context.get("missing_keywords", []))}
+
+Strengths:
+{json.dumps(match_context.get("strengths", []))}
+
+Gaps:
+{json.dumps(match_context.get("gaps", []))}
+
+Improvement Actions:
+{json.dumps(match_context.get("improvement_actions", []))}
+"""
 
 def clean_json_response(content: str) -> str:
     content = (content or "").strip()
@@ -50,28 +69,33 @@ def clean_json_response(content: str) -> str:
     return content
 
 
-def generate_first_question(
-    target_role: str,
-    company_name: str | None = None,
-    job_context: dict | None = None,
-) -> str:
-    context = build_session_context(target_role, company_name, job_context)
+prompt = f"""
+You are a world-class recruiter.
 
-    prompt = f"""
-You are a senior recruiter conducting a realistic job interview.
+Generate the FIRST interview question.
 
-Start a multi-round interview.
+Use:
 
-Ask ONLY ONE opening interview question.
+1. Job title
+2. Company
+3. Job description
+4. Requirements
+5. Missing skills
+6. Candidate gaps
 
-The question should be relevant to the role and company.
+Priority:
+
+- If major gaps exist, test those gaps.
+- If match score is high, test practical experience.
+- Make the question realistic and role-specific.
+- Avoid generic interview questions.
 
 Interview Context:
+
 {context}
 
-Return only the question.
+Return ONLY ONE interview question.
 """
-
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         temperature=0.7,
@@ -95,21 +119,20 @@ def generate_follow_up_question(
     context = build_session_context(target_role, company_name, job_context)
 
     prompt = f"""
-You are a senior recruiter conducting a realistic adaptive interview.
-
-Generate the next interview question.
+You are a senior recruiter conducting an adaptive interview.
 
 This is round {round_number} of {MAX_ROUNDS}.
 
-The next question must be based on:
-1. The target role
-2. The company/job context
-3. The candidate's previous answer
-4. Any gaps, strengths, or claims in the previous answer
+Your next question must:
 
-Do not repeat previous questions.
+1. Analyze the candidate's previous answer.
+2. Identify weaknesses.
+3. Probe deeper into missing skills.
+4. Test real experience.
+5. Verify claims made by the candidate.
 
 Interview Context:
+
 {context}
 
 Previous Question:
@@ -121,7 +144,9 @@ Candidate Answer:
 Previous Rounds:
 {json.dumps(previous_rounds, ensure_ascii=False)}
 
-Return only ONE next interview question.
+Do NOT repeat previous questions.
+
+Return ONLY ONE next interview question.
 """
 
     response = client.chat.completions.create(
@@ -144,8 +169,26 @@ def generate_final_assessment(
     context = build_session_context(target_role, company_name, job_context)
 
     prompt = f"""
-You are a senior recruiter and interview assessor.
+"""
+You are an executive recruiter.
 
+Assess:
+
+1. Communication
+2. Technical competence
+3. Confidence
+4. Problem solving
+5. Role fit
+
+Compare the candidate against:
+
+- Job requirements
+- Responsibilities
+- Missing keywords
+- Match gaps
+
+Be realistic and evidence-based.
+"""
 Assess this multi-round interview.
 
 Interview Context:
