@@ -62,6 +62,31 @@ type MultiRoundSession = {
   created_at: string;
 };
 
+const TARGET_ROLES = [
+  "Business Analyst",
+  "Product Manager",
+  "Project Manager",
+  "Data Analyst",
+  "Finance Manager",
+  "Accountant",
+  "Sales Executive",
+  "Sales Operations Manager",
+  "Business Development / Sales Executive",
+  "Customer Support Specialist",
+  "HR Manager",
+  "Operations Manager",
+  "Software Engineer",
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack Developer",
+  "Cybersecurity Analyst",
+  "Marketing Manager",
+  "Digital Marketing Specialist",
+  "Administrative Officer",
+  "Graduate Trainee",
+  "Other",
+];
+
 export default function InterviewIQPage() {
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
@@ -590,11 +615,29 @@ ${round.answer || "Not answered."}`
             Target Role
           </label>
 
-          <input
-            value={targetRole}
-            onChange={(e) => setTargetRole(e.target.value)}
+          <select
+            value={TARGET_ROLES.includes(targetRole) ? targetRole : "Other"}
+            onChange={(e) => {
+              const selected = e.target.value;
+              setTargetRole(selected === "Other" ? "" : selected);
+            }}
             className="mt-2 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
-          />
+          >
+            {TARGET_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>  
+
+          {!TARGET_ROLES.includes(targetRole) && (
+            <input
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+              placeholder="Enter custom target role"
+              className="mt-3 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
+            />
+          )}
 
           {mode === "multi" && (
             <>
