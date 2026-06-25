@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import jsPDF from "jspdf";
 import {
@@ -11,6 +11,7 @@ import {
   Trophy,
   Download,
   Trash2,
+  Search,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -31,6 +32,10 @@ type JobContext = {
   description: string | null;
   requirements: string | null;
   responsibilities: string | null;
+  location_display?: string | null;
+  country?: string | null;
+  work_type?: string | null;
+  employment_type?: string | null;
 };
 
 type InterviewRound = {
@@ -62,36 +67,14 @@ type MultiRoundSession = {
   created_at: string;
 };
 
-const TARGET_ROLES = [
-  "Business Analyst",
-  "Product Manager",
-  "Project Manager",
-  "Data Analyst",
-  "Finance Manager",
-  "Accountant",
-  "Sales Executive",
-  "Sales Operations Manager",
-  "Business Development / Sales Executive",
-  "Customer Support Specialist",
-  "HR Manager",
-  "Operations Manager",
-  "Software Engineer",
-  "Frontend Developer",
-  "Backend Developer",
-  "Full Stack Developer",
-  "Cybersecurity Analyst",
-  "Marketing Manager",
-  "Digital Marketing Specialist",
-  "Administrative Officer",
-  "Graduate Trainee",
-  "Other",
-];
-
 export default function InterviewIQPage() {
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
   const [companyName, setCompanyName] = useState("");
   const [jobContext, setJobContext] = useState<JobContext | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [availableJobs, setAvailableJobs] = useState<JobContext[]>([]);
+  const [jobSearch, setJobSearch] = useState("");
   const [mode, setMode] = useState<"single" | "multi">("single");
 
   const [question, setQuestion] = useState("");
@@ -113,6 +96,21 @@ export default function InterviewIQPage() {
   const [reviewing, setReviewing] = useState(false);
   const [message, setMessage] = useState("");
 
+  const filteredJobs = useMemo(() => {
+    const search = jobSearch.toLowerCase().trim();
+
+    if (!search) return availableJobs;
+
+    return availableJobs.filter((job) => {
+      return (
+        job.title?.toLowerCase().includes(search) ||
+        job.company_name?.toLowerCase().includes(search) ||
+        job.location_display?.toLowerCase().includes(search) ||
+        job.country?.toLowerCase().includes(search)
+      );
+    });
+  }, [availableJobs, jobSearch]);
+
   useEffect(() => {
     async function init() {
       try {
@@ -125,6 +123,8 @@ export default function InterviewIQPage() {
         }
 
         setUserId(user.id);
+
+        await loadAvailableJobs();
 
         const params = new URLSearchParams(window.location.search);
         const jobId = params.get("job_id");
@@ -157,6 +157,24 @@ export default function InterviewIQPage() {
     init();
   }, []);
 
+  async function loadAvailableJobs() {
+    const { data, error } = await supabaseBrowser
+      .from("jobs")
+      .select(
+        "id,title,company_name,description,requirements,responsibilities,location_display,country,work_type,employment_type"
+      )
+      .is("deleted_at", null)
+      .order("posted_at", { ascending: false })
+      .limit(200);
+
+    if (error) {
+      console.error("Job load error:", error);
+      return;
+    }
+
+    setAvailableJobs((data || []) as JobContext[]);
+  }
+
   async function loadSessions(currentUserId: string) {
     const { data } = await supabaseBrowser
       .from("interview_iq_sessions")
@@ -182,16 +200,32 @@ export default function InterviewIQPage() {
   async function loadJobContext(jobId: string) {
     const { data } = await supabaseBrowser
       .from("jobs")
-      .select("id,title,company_name,description,requirements,responsibilities")
+      .select(
+        "id,title,company_name,description,requirements,responsibilities,location_display,country,work_type,employment_type"
+      )
       .eq("id", jobId)
       .maybeSingle();
 
     if (data) {
       const job = data as JobContext;
+      setSelectedJobId(job.id);
       setJobContext(job);
       setTargetRole(job.title || "Job Interview");
       setCompanyName(job.company_name || "");
     }
+  }
+
+  function handleSelectJob(jobId: string) {
+    setSelectedJobId(jobId);
+
+    const selected = availableJobs.find((job) => job.id === jobId);
+
+    if (!selected) return;
+
+    setJobContext(selected);
+    setTargetRole(selected.title || "Job Interview");
+    setCompanyName(selected.company_name || "");
+    resetInterview();
   }
 
   function resetInterview() {
@@ -547,7 +581,7 @@ ${round.answer || "Not answered."}`
             </h1>
 
             <p className="mt-3 max-w-3xl text-slate-300">
-              Practice realistic job interviews based on your role, company and job context.
+              Select a live advertised job and practice interview questions based on the real vacancy.
             </p>
           </div>
         </div>
@@ -569,6 +603,11 @@ ${round.answer || "Not answered."}`
           </h2>
           <p className="mt-1 text-slate-700">
             {jobContext.company_name || "Company not stated"}
+          </p>
+          <p className="mt-2 text-sm text-slate-600">
+            {jobContext.location_display || jobContext.country || "Location not stated"}
+            {jobContext.work_type ? ` • ${jobContext.work_type}` : ""}
+            {jobContext.employment_type ? ` • ${jobContext.employment_type}` : ""}
           </p>
         </section>
       )}
@@ -612,32 +651,45 @@ ${round.answer || "Not answered."}`
           <h2 className="text-xl font-bold text-slate-900">Interview Setup</h2>
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">
-            Target Role
+            Search Live Job
+          </label>
+
+          <div className="mt-2 flex items-center gap-2 rounded-xl border px-4 py-3">
+            <Search size={18} className="text-slate-400" />
+            <input
+              value={jobSearch}
+              onChange={(e) => setJobSearch(e.target.value)}
+              placeholder="Search job title, company or location"
+              className="w-full outline-none"
+            />
+          </div>
+
+          <label className="mt-5 block text-sm font-semibold text-slate-700">
+            Target Job
           </label>
 
           <select
-            value={TARGET_ROLES.includes(targetRole) ? targetRole : "Other"}
-            onChange={(e) => {
-              const selected = e.target.value;
-              setTargetRole(selected === "Other" ? "" : selected);
-            }}
+            value={selectedJobId}
+            onChange={(e) => handleSelectJob(e.target.value)}
             className="mt-2 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
           >
-            {TARGET_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {role}
+            <option value="">Select a live advertised job...</option>
+            {filteredJobs.map((job) => (
+              <option key={job.id} value={job.id}>
+                {job.title || "Untitled Job"} — {job.company_name || "Company not stated"}
               </option>
             ))}
-          </select>  
+          </select>
 
-          {!TARGET_ROLES.includes(targetRole) && (
-            <input
-              value={targetRole}
-              onChange={(e) => setTargetRole(e.target.value)}
-              placeholder="Enter custom target role"
-              className="mt-3 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
-            />
-          )}
+          <label className="mt-5 block text-sm font-semibold text-slate-700">
+            Target Role
+          </label>
+
+          <input
+            value={targetRole}
+            onChange={(e) => setTargetRole(e.target.value)}
+            className="mt-2 w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-600"
+          />
 
           {mode === "multi" && (
             <>
@@ -726,7 +778,7 @@ ${round.answer || "Not answered."}`
             </div>
           ) : (
             <div className="mt-5 rounded-2xl border border-dashed p-8 text-center text-slate-600">
-              Start an interview to generate your first question.
+              Select a live job or enter a role, then start an interview.
             </div>
           )}
         </div>
