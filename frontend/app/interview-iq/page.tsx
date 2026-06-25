@@ -12,6 +12,9 @@ import {
   Download,
   Trash2,
   Search,
+  Target,
+  AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -67,6 +70,22 @@ type MultiRoundSession = {
   created_at: string;
 };
 
+type WeaknessItem = {
+  area: string;
+  risk: string;
+  note: string;
+};
+
+type InterviewReadiness = {
+  readiness_score: number;
+  success_probability: number;
+  matched_keywords: string[];
+  missing_keywords: string[];
+  weakness_heatmap: WeaknessItem[];
+  recommended_learning_actions: string[];
+  summary: string;
+};
+
 export default function InterviewIQPage() {
   const [userId, setUserId] = useState("");
   const [targetRole, setTargetRole] = useState("Business Analyst");
@@ -76,6 +95,9 @@ export default function InterviewIQPage() {
   const [availableJobs, setAvailableJobs] = useState<JobContext[]>([]);
   const [jobSearch, setJobSearch] = useState("");
   const [mode, setMode] = useState<"single" | "multi">("single");
+
+  const [readiness, setReadiness] = useState<InterviewReadiness | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -101,14 +123,12 @@ export default function InterviewIQPage() {
 
     if (!search) return availableJobs;
 
-    return availableJobs.filter((job) => {
-      return (
-        job.title?.toLowerCase().includes(search) ||
-        job.company_name?.toLowerCase().includes(search) ||
-        job.location_display?.toLowerCase().includes(search) ||
-        job.country?.toLowerCase().includes(search)
-      );
-    });
+    return availableJobs.filter((job) =>
+      job.title?.toLowerCase().includes(search) ||
+      job.company_name?.toLowerCase().includes(search) ||
+      job.location_display?.toLowerCase().includes(search) ||
+      job.country?.toLowerCase().includes(search)
+    );
   }, [availableJobs, jobSearch]);
 
   useEffect(() => {
@@ -138,7 +158,7 @@ export default function InterviewIQPage() {
         }
 
         if (jobId) {
-          await loadJobContext(jobId);
+          await loadJobContext(jobId, user.id);
         } else if (roleFromUrl) {
           setTargetRole(roleFromUrl);
           setCompanyName(companyFromUrl || "");
@@ -197,7 +217,7 @@ export default function InterviewIQPage() {
     setMultiSessions((data || []) as MultiRoundSession[]);
   }
 
-  async function loadJobContext(jobId: string) {
+  async function loadJobContext(jobId: string, currentUserId?: string) {
     const { data } = await supabaseBrowser
       .from("jobs")
       .select(
@@ -212,6 +232,80 @@ export default function InterviewIQPage() {
       setJobContext(job);
       setTargetRole(job.title || "Job Interview");
       setCompanyName(job.company_name || "");
+
+      if (currentUserId) {
+        await calculateReadiness(job, currentUserId);
+      }
+    }
+  }
+
+  async function getLatestAiMatchResult(currentUserId: string, jobId?: string) {
+    if (!jobId) return {};
+
+    try {
+      const response = await fetch("/api/ai-match-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          user_id: currentUserId,
+          job_id: jobId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") return {};
+
+      const latest = data.history?.[0];
+
+      return latest?.result || {};
+    } catch {
+      return {};
+    }
+  }
+
+  async function calculateReadiness(
+    selectedJob: JobContext | null = jobContext,
+    currentUserId: string = userId
+  ) {
+    if (!currentUserId) return;
+
+    setReadinessLoading(true);
+    setMessage("");
+
+    try {
+      const aiMatchResult = await getLatestAiMatchResult(
+        currentUserId,
+        selectedJob?.id
+      );
+
+      const response = await fetch("/api/interview-iq/readiness", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          user_id: currentUserId,
+          job_context: selectedJob || {
+            title: targetRole,
+            company_name: companyName,
+          },
+          ai_match_result: aiMatchResult,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to calculate interview readiness.");
+        return;
+      }
+
+      setReadiness(data.readiness || null);
+    } catch {
+      setMessage("Unable to calculate interview readiness.");
+    } finally {
+      setReadinessLoading(false);
     }
   }
 
@@ -226,6 +320,7 @@ export default function InterviewIQPage() {
     setTargetRole(selected.title || "Job Interview");
     setCompanyName(selected.company_name || "");
     resetInterview();
+    calculateReadiness(selected, userId);
   }
 
   function resetInterview() {
@@ -581,7 +676,7 @@ ${round.answer || "Not answered."}`
             </h1>
 
             <p className="mt-3 max-w-3xl text-slate-300">
-              Select a live advertised job and practice interview questions based on the real vacancy.
+              Select a live advertised job, check your readiness, and practice realistic interview questions.
             </p>
           </div>
         </div>
@@ -609,6 +704,77 @@ ${round.answer || "Not answered."}`
             {jobContext.work_type ? ` • ${jobContext.work_type}` : ""}
             {jobContext.employment_type ? ` • ${jobContext.employment_type}` : ""}
           </p>
+        </section>
+      )}
+
+      {readiness && (
+        <section className="mt-8 rounded-3xl border bg-white p-8 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Target className="text-blue-700" />
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">
+                Interview Readiness Intelligence
+              </p>
+              <h2 className="mt-1 text-2xl font-bold text-slate-900">
+                Readiness Score: {readiness.readiness_score}%
+              </h2>
+            </div>
+          </div>
+
+          <p className="mt-4 text-slate-700">{readiness.summary}</p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <ScoreCard
+              title="Interview Success Probability"
+              value={`${readiness.success_probability}%`}
+            />
+            <ScoreCard
+              title="Missing Keywords"
+              value={`${readiness.missing_keywords.length}`}
+            />
+          </div>
+
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
+            <KeywordPanel
+              title="Matched Keywords"
+              items={readiness.matched_keywords}
+              type="positive"
+            />
+            <KeywordPanel
+              title="Missing Keywords"
+              items={readiness.missing_keywords}
+              type="warning"
+            />
+          </div>
+
+          <div className="mt-6 rounded-2xl bg-slate-50 p-5">
+            <h3 className="font-bold text-slate-900">Weakness Heatmap</h3>
+            <div className="mt-4 space-y-3">
+              {readiness.weakness_heatmap.map((item) => (
+                <div key={item.area} className="rounded-xl bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-900">{item.area}</p>
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                      {item.risk}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">{item.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl bg-blue-50 p-5">
+            <h3 className="font-bold text-slate-900">Recommended Learning Actions</h3>
+            <ul className="mt-4 space-y-2">
+              {readiness.recommended_learning_actions.map((action) => (
+                <li key={action} className="flex gap-2 text-sm text-slate-700">
+                  <CheckCircle size={16} className="mt-0.5 text-blue-700" />
+                  <span>{action}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
 
@@ -707,9 +873,18 @@ ${round.answer || "Not answered."}`
           )}
 
           <button
+            onClick={() => calculateReadiness()}
+            disabled={readinessLoading}
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <AlertTriangle size={18} />
+            {readinessLoading ? "Checking..." : "Check Interview Readiness"}
+          </button>
+
+          <button
             onClick={mode === "single" ? startSingleInterview : startMultiRoundInterview}
             disabled={starting}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           >
             <Sparkles size={18} />
             {starting
@@ -951,6 +1126,49 @@ ${round.answer || "Not answered."}`
         </section>
       )}
     </main>
+  );
+}
+
+function ScoreCard({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-blue-50 p-5 text-blue-700">
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="mt-2 text-3xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function KeywordPanel({
+  title,
+  items,
+  type,
+}: {
+  title: string;
+  items: string[];
+  type: "positive" | "warning";
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-5">
+      <h3 className="font-bold text-slate-900">{title}</h3>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <span
+              key={item}
+              className={
+                type === "positive"
+                  ? "rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700"
+                  : "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+              }
+            >
+              {item}
+            </span>
+          ))
+        ) : (
+          <p className="text-sm text-slate-500">None detected.</p>
+        )}
+      </div>
+    </div>
   );
 }
 

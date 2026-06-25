@@ -9,6 +9,7 @@ from app.services.transcription_service import transcribe_audio_file
 from app.services.interview_iq_analyzer import analyze_interview
 from app.services.ai_match_score import generate_ai_match_score
 from app.services.job_recommender import recommend_jobs_for_resume
+from app.services.interview_readiness import calculate_interview_readiness
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -1047,4 +1048,55 @@ def job_recommendation_history(payload: dict, x_cron_secret: str = Header(defaul
         return {
             "status": "error",
             "message": str(e)
+        }
+
+@app.post("/tasks/interview-iq/readiness")
+def interview_iq_readiness(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+        job_context = payload.get("job_context") or {}
+        ai_match_result = payload.get("ai_match_result") or {}
+
+        if not user_id:
+            return {
+                "status": "error",
+                "message": "user_id is required",
+            }
+
+        supabase = get_supabase()
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("id,resume_text")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile = profile_response.data or {}
+        resume_text = profile.get("resume_text") or ""
+
+        if not resume_text.strip():
+            return {
+                "status": "error",
+                "message": "No resume text found. Please upload and extract your CV first.",
+            }
+
+        readiness = calculate_interview_readiness(
+            resume_text=resume_text,
+            job_context=job_context,
+            ai_match_result=ai_match_result,
+        )
+
+        return {
+            "status": "completed",
+            "readiness": readiness,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
         }
