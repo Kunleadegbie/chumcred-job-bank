@@ -93,6 +93,8 @@ export default function CvIntelligencePage() {
 
       setUserId(user.id);
       await loadJobs();
+      await loadLatestCvIntelligence(user.id);
+      await loadLatestCvRewrite(user.id);
       setLoading(false);
     }
 
@@ -188,6 +190,40 @@ export default function CvIntelligencePage() {
       setMessage("Unable to rewrite CV.");
     } finally {
       setRewriting(false);
+    }
+  }
+
+  async function loadLatestCvIntelligence(currentUserId: string) {
+    const { data } = await supabaseBrowser
+      .from("cv_intelligence_history")
+      .select("*")
+      .eq("user_id", currentUserId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const latest = data?.[0];
+
+    if (latest?.result) {
+      setResult(latest.result);
+      setSelectedJob(latest.job_context || null);
+      setSelectedJobId(latest.job_context?.id || "");
+    }
+  }
+
+  async function loadLatestCvRewrite(currentUserId: string) {
+    const { data } = await supabaseBrowser
+      .from("cv_rewrite_history")
+      .select("*")
+      .eq("user_id", currentUserId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const latest = data?.[0];
+
+    if (latest?.rewrite) {
+      setRewrite(latest.rewrite);
+      setSelectedJob(latest.job_context || null);
+      setSelectedJobId(latest.job_context?.id || "");
     }
   }
 
