@@ -508,7 +508,15 @@ export default function InterviewIQPage() {
         setFinalAssessment(data.assessment || null);
         setQuestion("");
         setAnswer("");
-        await loadMultiRoundSessions(userId);
+
+        if (data.session) {
+          setMultiSessions((prev) => [data.session, ...prev]);
+          setExpandedSessionId(data.session.id);
+          setMessage("Interview saved successfully. Your saved interview card is now available below.");
+        } else {
+          await loadMultiRoundSessions(userId);
+          setMessage("Interview completed. If the saved card does not appear, refresh the page.");
+        }
         return;
       }
 
@@ -1048,7 +1056,7 @@ ${round.answer || "Not answered."}`
       {multiSessions.length > 0 && (
         <section className="mt-10">
           <h2 className="text-2xl font-bold text-slate-900">
-            Previous Multi-Round Interviews
+            Saved Interview Cards
           </h2>
 
           <div className="mt-5 space-y-5">
