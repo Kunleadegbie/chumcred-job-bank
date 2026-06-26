@@ -10,6 +10,7 @@ from app.services.interview_iq_analyzer import analyze_interview
 from app.services.ai_match_score import generate_ai_match_score
 from app.services.job_recommender import recommend_jobs_for_resume
 from app.services.interview_readiness import calculate_interview_readiness
+from app.services.cv_intelligence import calculate_cv_intelligence
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -1121,6 +1122,63 @@ def interview_iq_readiness(payload: dict, x_cron_secret: str = Header(default=No
         return {
             "status": "completed",
             "readiness": readiness,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+        }
+
+@app.post("/tasks/cv-intelligence")
+def cv_intelligence(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+        job_context = payload.get("job_context") or {}
+
+        if not user_id:
+            return {
+                "status": "error",
+                "message": "user_id is required",
+            }
+
+        supabase = get_supabase()
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("id,resume_text")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile = profile_response.data or {}
+        resume_text = profile.get("resume_text") or ""
+
+        if not resume_text.strip():
+            return {
+                "status": "error",
+                "message": "No resume text found. Please upload and extract your CV first.",
+            }
+
+        result = calculate_cv_intelligence(
+            resume_text=resume_text,
+            job_context=job_context,
+        )
+
+        save_response = supabase.table("cv_intelligence_history").insert({
+            "user_id": user_id,
+            "job_context": job_context,
+            "ats_score": result.get("ats_score", 0),
+            "result": result,
+        }).execute()
+
+        return {
+            "status": "completed",
+            "intelligence": result,
+            "saved": bool(save_response.data),
         }
 
     except Exception as e:

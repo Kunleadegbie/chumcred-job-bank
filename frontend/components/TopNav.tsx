@@ -122,6 +122,7 @@ export default function TopNav() {
                 <DropdownLink href="/ai-match-score">AI Match Score</DropdownLink>
                 <DropdownLink href="/ai-match-history">AI Match History</DropdownLink>
                 <DropdownLink href="/recommended-jobs">Recommended Jobs</DropdownLink>
+                <DropdownLink href="/cv-intelligence">CV Intelligence Pro</DropdownLink>
    
               </Dropdown>
 

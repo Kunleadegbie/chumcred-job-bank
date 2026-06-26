@@ -364,6 +364,7 @@ export default function DashboardPage() {
           <QuickLink href="/recommended-jobs" label="Recommended Jobs" />
           <QuickLink href="/ai-career-coach" label="AI Career Coach" />
           <QuickLink href="/ai-cv-review" label="AI CV Review" />
+          <QuickLink href="/cv-intelligence" label="CV Intelligence Pro" />
           <QuickLink href="/interview-iq" label="InterviewIQ" />
           <QuickLink href="/ai-job-search" label="AI Global Job Search" />
           <QuickLink href="/ai-match-score" label="AI Match Score" />
