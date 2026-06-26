@@ -675,7 +675,6 @@ def interview_iq_next_question(payload: dict, x_cron_secret: str = Header(defaul
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-
 @app.post("/tasks/interview-iq/end-session")
 def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=None)):
     try:
@@ -687,6 +686,12 @@ def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=
         job_context = payload.get("job_context") or None
         rounds = payload.get("rounds") or []
 
+        if not user_id:
+            return {"status": "error", "message": "user_id is required"}
+
+        if not rounds:
+            return {"status": "error", "message": "Interview rounds are required"}
+
         assessment = generate_final_assessment(
             target_role=target_role,
             company_name=company_name,
@@ -694,27 +699,44 @@ def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=
             rounds=rounds,
         )
 
-        saved = False
+        overall_score = int(assessment.get("overall_score") or 0)
+        recommendation = assessment.get("recommendation") or ""
 
-        if user_id:
-            supabase = get_supabase()
+        supabase = get_supabase()
 
-            insert_response = supabase.table("multi_round_interview_sessions").insert({
-                "user_id": user_id,
-                "target_role": target_role,
-                "company_name": company_name,
-                "job_context": job_context,
-                "rounds": rounds,
+        insert_payload = {
+            "user_id": user_id,
+            "target_role": target_role,
+            "company_name": company_name,
+            "job_context": job_context,
+            "rounds": rounds,
+            "assessment": assessment,
+            "overall_score": overall_score,
+            "recommendation": recommendation,
+            "status": "completed",
+        }
+
+        insert_response = (
+            supabase.table("multi_round_interview_sessions")
+            .insert(insert_payload)
+            .execute()
+        )
+
+        if not insert_response.data:
+            return {
+                "status": "error",
+                "message": "Interview completed but could not be saved to history.",
                 "assessment": assessment,
-                "status": "completed",
-            }).execute()
+                "rounds": rounds,
+                "saved": False,
+            }
 
-            saved = bool(insert_response.data)
+        saved_session = insert_response.data[0]
 
-            supabase.table("interview_iq_drafts").update({
-                "status": "completed",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("user_id", user_id).eq("status", "draft").execute()
+        supabase.table("interview_iq_drafts").update({
+            "status": "completed",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id).eq("status", "draft").execute()
 
         return {
             "status": "completed",
@@ -722,11 +744,17 @@ def interview_iq_end_session(payload: dict, x_cron_secret: str = Header(default=
             "company_name": company_name,
             "rounds": rounds,
             "assessment": assessment,
-            "saved": saved,
+            "saved": True,
+            "session": saved_session,
+            "session_id": saved_session.get("id"),
         }
 
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {
+            "status": "error",
+            "message": str(e),
+            "saved": False,
+        }
 
 @app.post("/tasks/ai-job-search")
 async def ai_job_search(
