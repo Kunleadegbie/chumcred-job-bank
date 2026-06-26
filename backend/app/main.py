@@ -11,6 +11,7 @@ from app.services.ai_match_score import generate_ai_match_score
 from app.services.job_recommender import recommend_jobs_for_resume
 from app.services.interview_readiness import calculate_interview_readiness
 from app.services.cv_intelligence import calculate_cv_intelligence
+from app.services.cv_rewrite import rewrite_cv_for_job
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -1178,6 +1179,65 @@ def cv_intelligence(payload: dict, x_cron_secret: str = Header(default=None)):
         return {
             "status": "completed",
             "intelligence": result,
+            "saved": bool(save_response.data),
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+        }
+
+@app.post("/tasks/cv-rewrite")
+def cv_rewrite(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+        job_context = payload.get("job_context") or {}
+        cv_intelligence = payload.get("cv_intelligence") or {}
+
+        if not user_id:
+            return {
+                "status": "error",
+                "message": "user_id is required",
+            }
+
+        supabase = get_supabase()
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("id,resume_text")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile = profile_response.data or {}
+        resume_text = profile.get("resume_text") or ""
+
+        if not resume_text.strip():
+            return {
+                "status": "error",
+                "message": "No resume text found. Please upload and extract your CV first.",
+            }
+
+        rewrite = rewrite_cv_for_job(
+            resume_text=resume_text,
+            job_context=job_context,
+            cv_intelligence=cv_intelligence,
+        )
+
+        save_response = supabase.table("cv_rewrite_history").insert({
+            "user_id": user_id,
+            "job_context": job_context,
+            "cv_intelligence": cv_intelligence,
+            "rewrite": rewrite,
+        }).execute()
+
+        return {
+            "status": "completed",
+            "rewrite": rewrite,
             "saved": bool(save_response.data),
         }
 

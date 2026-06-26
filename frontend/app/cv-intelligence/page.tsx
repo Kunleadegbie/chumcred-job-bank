@@ -41,6 +41,20 @@ type CvIntelligence = {
   recommended_cv_actions: string[];
 };
 
+type CvRewrite = {
+  improved_summary: string;
+  tailored_headline: string;
+  rewritten_experience_bullets: string[];
+  keywords_to_add: string[];
+  sections_to_improve: {
+    section: string;
+    issue: string;
+    suggested_fix: string;
+  }[];
+  application_positioning: string;
+  final_cv_improvement_note: string;
+};
+
 export default function CvIntelligencePage() {
   const [userId, setUserId] = useState("");
   const [jobs, setJobs] = useState<JobContext[]>([]);
@@ -48,6 +62,8 @@ export default function CvIntelligencePage() {
   const [selectedJob, setSelectedJob] = useState<JobContext | null>(null);
   const [jobSearch, setJobSearch] = useState("");
   const [result, setResult] = useState<CvIntelligence | null>(null);
+  const [rewrite, setRewrite] = useState<CvRewrite | null>(null);
+  const [rewriting, setRewriting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState("");
@@ -138,6 +154,40 @@ export default function CvIntelligencePage() {
       setMessage("Unable to generate CV Intelligence.");
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function rewriteCv() {
+    if (!userId || !result) return;
+
+    setRewriting(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/cv-rewrite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          job_context: selectedJob || {},
+          cv_intelligence: result,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.status === "error") {
+        setMessage(data.message || data.error || "Unable to rewrite CV.");
+        return;
+      }
+
+      setRewrite(data.rewrite);
+    } catch {
+      setMessage("Unable to rewrite CV.");
+    } finally {
+      setRewriting(false);
     }
   }
 
@@ -319,6 +369,106 @@ export default function CvIntelligencePage() {
                 title="Recommended CV Actions"
                 items={result.recommended_cv_actions}
               />
+              <div className="mt-8">
+                <button
+                  onClick={rewriteCv}
+                  disabled={rewriting}
+                  className="rounded-xl bg-slate-900 px-6 py-4 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {rewriting ? "Rewriting CV..." : "Rewrite CV for this Job"}
+                </button>
+              </div>   
+              {rewrite && (
+  <div className="mt-8 space-y-6">
+
+    <div className="rounded-2xl bg-green-50 p-6">
+      <h3 className="text-xl font-bold">
+        Tailored Headline
+      </h3>
+
+      <p className="mt-3">
+        {rewrite.tailored_headline}
+      </p>
+    </div>
+
+    <div className="rounded-2xl bg-white border p-6">
+      <h3 className="text-xl font-bold">
+        Improved Professional Summary
+      </h3>
+
+      <p className="mt-3 whitespace-pre-line">
+        {rewrite.improved_summary}
+      </p>
+    </div>
+
+    <div className="rounded-2xl bg-white border p-6">
+      <h3 className="text-xl font-bold">
+        Rewritten Experience Bullets
+      </h3>
+
+      <ul className="mt-4 list-disc pl-6 space-y-2">
+        {rewrite.rewritten_experience_bullets.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+
+    <ActionPanel
+      title="Keywords to Add"
+      items={rewrite.keywords_to_add}
+    />
+
+    <div className="rounded-2xl bg-white border p-6">
+      <h3 className="text-xl font-bold">
+        Sections to Improve
+      </h3>
+
+      <div className="mt-5 space-y-4">
+        {rewrite.sections_to_improve.map((section) => (
+          <div
+            key={section.section}
+            className="rounded-xl bg-slate-50 p-4"
+          >
+            <p className="font-bold">
+              {section.section}
+            </p>
+
+            <p className="mt-2">
+              <strong>Issue:</strong> {section.issue}
+            </p>
+
+            <p className="mt-2">
+              <strong>Suggested Fix:</strong>{" "}
+              {section.suggested_fix}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="rounded-2xl bg-blue-50 p-6">
+      <h3 className="text-xl font-bold">
+        Application Positioning
+      </h3>
+
+      <p className="mt-3">
+        {rewrite.application_positioning}
+      </p>
+    </div>
+
+    <div className="rounded-2xl bg-amber-50 p-6">
+      <h3 className="text-xl font-bold">
+        Final CV Improvement Note
+      </h3>
+
+      <p className="mt-3">
+        {rewrite.final_cv_improvement_note}
+      </p>
+    </div>
+
+  </div>
+)}
+
             </div>
           )}
         </div>
