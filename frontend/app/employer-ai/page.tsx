@@ -288,7 +288,7 @@ export default function EmployerAIPage() {
 
             <div className="mt-4 max-h-[620px] overflow-auto rounded-2xl bg-slate-900 p-5 text-sm text-slate-100">
               {result ? (
-                <pre className="whitespace-pre-wrap">{JSON.stringify(result, null, 2)}</pre>
+                <ResultView result={result} />
               ) : (
                 <p className="text-slate-400">
                   Your EmployerAI result will appear here and save to Supabase
@@ -386,4 +386,72 @@ function Textarea({
       />
     </label>
   );
+}
+
+function ResultView({ result }: { result: any }) {
+  if (result?.error) {
+    return (
+      <div className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-200">
+        {result.error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 text-slate-100">
+      {Object.entries(result).map(([key, value]) => (
+        <ResultSection key={key} title={formatTitle(key)} value={value} />
+      ))}
+    </div>
+  );
+}
+
+function ResultSection({ title, value }: { title: string; value: any }) {
+  if (Array.isArray(value)) {
+    return (
+      <div>
+        <h3 className="mb-2 text-lg font-bold text-blue-300">{title}</h3>
+        <ul className="space-y-2">
+          {value.map((item, index) => (
+            <li
+              key={index}
+              className="rounded-xl border border-white/10 bg-white/5 p-3"
+            >
+              {typeof item === "object" ? (
+                <ResultView result={item} />
+              ) : (
+                <span>{String(item)}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return (
+      <div>
+        <h3 className="mb-2 text-lg font-bold text-blue-300">{title}</h3>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <ResultView result={value} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="mb-2 text-lg font-bold text-blue-300">{title}</h3>
+      <p className="rounded-xl border border-white/10 bg-white/5 p-4 leading-relaxed text-slate-200">
+        {String(value || "Not provided")}
+      </p>
+    </div>
+  );
+}
+
+function formatTitle(key: string) {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
