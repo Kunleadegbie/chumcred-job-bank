@@ -12,6 +12,7 @@ from app.services.job_recommender import recommend_jobs_for_resume
 from app.services.interview_readiness import calculate_interview_readiness
 from app.services.cv_intelligence import calculate_cv_intelligence
 from app.services.cv_rewrite import rewrite_cv_for_job
+from app.services.career_iq import generate_career_iq_report
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -1246,3 +1247,99 @@ def cv_rewrite(payload: dict, x_cron_secret: str = Header(default=None)):
             "status": "error",
             "message": str(e),
         }
+
+@app.post("/tasks/career-iq")
+def career_iq(payload: dict, x_cron_secret: str = Header(default=None)):
+    try:
+        verify_cron_secret(x_cron_secret)
+
+        user_id = payload.get("user_id")
+        career_goal = payload.get("career_goal") or ""
+
+        if not user_id:
+            return {"status": "error", "message": "user_id is required"}
+
+        supabase = get_supabase()
+
+        profile_response = (
+            supabase.table("profiles")
+            .select("*")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile = profile_response.data or {}
+        resume_text = profile.get("resume_text") or ""
+
+        latest_cv = (
+            supabase.table("cv_intelligence_history")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        latest_interviews = (
+            supabase.table("multi_round_interview_sessions")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(5)
+            .execute()
+        )
+
+        latest_recommendations = (
+            supabase.table("job_recommendation_history")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        latest_matches = (
+            supabase.table("ai_match_results")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+
+        cv_intelligence = {}
+        if latest_cv.data:
+            cv_intelligence = latest_cv.data[0].get("result") or {}
+
+        recommendations = []
+        if latest_recommendations.data:
+            recommendations = latest_recommendations.data[0].get("recommendations") or []
+
+        report = generate_career_iq_report(
+            profile=profile,
+            resume_text=resume_text,
+            career_goal=career_goal,
+            cv_intelligence=cv_intelligence,
+            interview_history=latest_interviews.data or [],
+            recommendations=recommendations,
+            ai_match_history=latest_matches.data or [],
+        )
+
+        save_response = supabase.table("career_iq_history").insert({
+            "user_id": user_id,
+            "career_goal": career_goal,
+            "analysis": report,
+            "career_health_score": report.get("career_health_score", 0),
+            "employability_score": report.get("employability_score", 0),
+        }).execute()
+
+        return {
+            "status": "completed",
+            "career_iq": report,
+            "saved": bool(save_response.data),
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
