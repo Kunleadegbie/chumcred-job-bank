@@ -38,6 +38,14 @@ from app.services.interview_session import (
     generate_final_assessment,
 )
 
+from app.services.employer_ai import (
+    generate_job_intelligence,
+    analyze_candidate_for_job,
+    rank_candidates_for_job,
+    generate_interview_pack,
+    improve_job_description,
+)
+
 
 app = FastAPI(
     title="Chumcred Global Job Bank API",
@@ -1342,4 +1350,59 @@ def career_iq(payload: dict, x_cron_secret: str = Header(default=None)):
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@app.post("/employer-ai/job-intelligence")
+async def employer_ai_job_intelligence(payload: dict):
+    return await generate_job_intelligence(
+        job_title=payload.get("job_title", ""),
+        company_name=payload.get("company_name"),
+        industry=payload.get("industry"),
+        location=payload.get("location"),
+        employment_type=payload.get("employment_type"),
+        experience_level=payload.get("experience_level"),
+        job_description=payload.get("job_description"),
+    )
+
+
+@app.post("/employer-ai/analyze-candidate")
+async def employer_ai_analyze_candidate(payload: dict):
+    return await analyze_candidate_for_job(
+        job_title=payload.get("job_title", ""),
+        job_description=payload.get("job_description", ""),
+        candidate_name=payload.get("candidate_name"),
+        candidate_cv_text=payload.get("candidate_cv_text"),
+        candidate_profile=payload.get("candidate_profile"),
+    )
+
+
+@app.post("/employer-ai/rank-candidates")
+async def employer_ai_rank_candidates(payload: dict):
+    return await rank_candidates_for_job(
+        job_title=payload.get("job_title", ""),
+        job_description=payload.get("job_description", ""),
+        candidates=payload.get("candidates", []),
+    )
+
+
+@app.post("/employer-ai/interview-pack")
+async def employer_ai_interview_pack(payload: dict):
+    return await generate_interview_pack(
+        job_title=payload.get("job_title", ""),
+        job_description=payload.get("job_description", ""),
+        candidate_name=payload.get("candidate_name"),
+        candidate_cv_text=payload.get("candidate_cv_text"),
+    )
+
+
+@app.post("/employer-ai/improve-job-description")
+async def employer_ai_improve_job_description(payload: dict):
+    return await improve_job_description(
+        job_title=payload.get("job_title", ""),
+        draft_description=payload.get("draft_description", ""),
+        industry=payload.get("industry"),
+        experience_level=payload.get("experience_level"),
+    )
+
+
 

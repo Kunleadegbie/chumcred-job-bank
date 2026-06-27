@@ -136,6 +136,9 @@ export default function TopNav() {
                 </DropdownLink>
                 <DropdownLink href="/employer/post-job">Post Job</DropdownLink>
                 <DropdownLink href="/employer/jobs">Manage Jobs</DropdownLink>
+                <DropdownLink href="/employer-ai">
+                  EmployerAI
+                </DropdownLink>
                 <DropdownLink href="/employer/plans">
                   Posting Plans
                 </DropdownLink>
@@ -153,6 +156,13 @@ export default function TopNav() {
                   <DropdownLink href="/admin/employer-payments">
                     Employer Payments
                   </DropdownLink>
+                  <DropdownLink href="/admin">Admin Dashboard</DropdownLink>
+
+                  <DropdownLink href="/employer-ai">
+                    EmployerAI
+                  </DropdownLink>
+
+                  <DropdownLink href="/admin/jobs">Manage Jobs</DropdownLink>
                 </Dropdown>
               )}
 

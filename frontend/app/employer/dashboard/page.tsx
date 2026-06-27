@@ -118,6 +118,29 @@ export default function EmployerDashboardPage() {
           <Link href="/employer/plans" className="rounded-xl border px-5 py-3 font-semibold hover:bg-slate-50">
             Posting Plans
           </Link>
+          <Link
+            href="/employer-ai"
+            className="rounded-3xl border border-blue-200 bg-blue-50 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+          >
+           <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+                AI Hiring Assistant
+              </p>
+              <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                EmployerAI
+              </h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Generate job intelligence, improve job descriptions, analyze candidates,
+                rank applicants, and create interview packs.
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white">
+              Open
+            </div>
+          </div>
+        </Link>
         </div>
       </section>
     </main>
