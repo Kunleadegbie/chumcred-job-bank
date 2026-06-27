@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type HistoryItem = {
   id: string;
@@ -22,7 +22,7 @@ const actions = [
 ];
 
 export default function EmployerAIPage() {
-  const supabase = createClient();
+  const supabase = supabaseBrowser;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [action, setAction] = useState("job_intelligence");
