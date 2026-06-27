@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.BACKEND_URL ||
-  "http://127.0.0.1:8000";
+  "";
 
 const ALLOWED_ACTIONS: Record<string, string> = {
   job_intelligence: "/employer-ai/job-intelligence",
@@ -15,8 +15,17 @@ const ALLOWED_ACTIONS: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    if (!BACKEND_URL) {
+      return NextResponse.json(
+        {
+          error:
+            "Backend URL is not configured. Add NEXT_PUBLIC_BACKEND_URL in Vercel.",
+        },
+        { status: 500 }
+      );
+    }
 
+    const body = await req.json();
     const action = body?.action;
 
     if (!action || !ALLOWED_ACTIONS[action]) {
@@ -40,24 +49,36 @@ export async function POST(req: NextRequest) {
       cache: "no-store",
     });
 
-    const data = await backendResponse.json();
+    const text = await backendResponse.text();
+
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
 
     if (!backendResponse.ok) {
       return NextResponse.json(
         {
-          error: data?.detail || data?.error || "EmployerAI backend request failed.",
+          error:
+            data?.detail ||
+            data?.error ||
+            `EmployerAI backend failed with status ${backendResponse.status}.`,
         },
         { status: backendResponse.status }
       );
     }
 
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("EmployerAI API error:", error);
 
     return NextResponse.json(
       {
-        error: "EmployerAI request failed. Please try again.",
+        error:
+          error?.message ||
+          "EmployerAI request failed. Check backend deployment and NEXT_PUBLIC_BACKEND_URL.",
       },
       { status: 500 }
     );
