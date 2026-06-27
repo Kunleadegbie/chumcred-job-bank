@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any, Dict, List, Optional
 
-from app.services import ai_client
+from app.services.ai_client import generate_json, compact_text
 
 
 EMPLOYER_AI_SYSTEM_PROMPT = """
@@ -19,48 +18,17 @@ disability, marital status, or ethnicity in hiring recommendations.
 """
 
 
-async def _call_ai(prompt: str, temperature: float = 0.3) -> str:
-    if hasattr(ai_client, "ask_ai"):
-        return await ai_client.ask_ai(
-            system_prompt=EMPLOYER_AI_SYSTEM_PROMPT,
-            user_prompt=prompt,
-            temperature=temperature,
-        )
+def _json_prompt(task_prompt: str) -> str:
+    return f"""
+{EMPLOYER_AI_SYSTEM_PROMPT}
 
-    if hasattr(ai_client, "generate_ai_response"):
-        return await ai_client.generate_ai_response(
-            system_prompt=EMPLOYER_AI_SYSTEM_PROMPT,
-            user_prompt=prompt,
-            temperature=temperature,
-        )
+{task_prompt}
 
-    if hasattr(ai_client, "generate_response"):
-        return await ai_client.generate_response(
-            system_prompt=EMPLOYER_AI_SYSTEM_PROMPT,
-            user_prompt=prompt,
-            temperature=temperature,
-        )
-
-    raise RuntimeError("No compatible AI function found in ai_client.py")
-
-
-def _extract_json(text: str) -> Dict[str, Any]:
-    if not text:
-        return {"raw_response": ""}
-
-    try:
-        return json.loads(text)
-    except Exception:
-        pass
-
-    match = re.search(r"\{[\s\S]*\}", text)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except Exception:
-            pass
-
-    return {"raw_response": text}
+Important:
+Return ONLY valid JSON.
+Do not include markdown.
+Do not include explanations outside the JSON.
+"""
 
 
 async def generate_job_intelligence(
@@ -72,7 +40,8 @@ async def generate_job_intelligence(
     experience_level: Optional[str] = None,
     job_description: Optional[str] = None,
 ) -> Dict[str, Any]:
-    prompt = f"""
+    prompt = _json_prompt(
+        f"""
 Create employer hiring intelligence for this role.
 
 Job Title: {job_title}
@@ -83,10 +52,9 @@ Employment Type: {employment_type or "Not provided"}
 Experience Level: {experience_level or "Not provided"}
 
 Existing Job Description:
-{job_description or "Not provided"}
+{compact_text(job_description, 5000)}
 
-Return ONLY valid JSON:
-
+JSON structure:
 {{
   "optimized_job_title": "",
   "job_summary": "",
@@ -106,8 +74,31 @@ Return ONLY valid JSON:
   "employer_recommendation": ""
 }}
 """
-    response = await _call_ai(prompt)
-    return _extract_json(response)
+    )
+
+    return generate_json(
+        prompt,
+        temperature=0.3,
+        max_tokens=1600,
+        fallback={
+            "optimized_job_title": job_title,
+            "job_summary": "",
+            "key_responsibilities": [],
+            "required_skills": [],
+            "preferred_skills": [],
+            "required_experience": "",
+            "education_or_certification": "",
+            "screening_questions": [],
+            "interview_questions": {
+                "technical": [],
+                "behavioral": [],
+                "role_fit": [],
+            },
+            "candidate_evaluation_criteria": [],
+            "red_flags": [],
+            "employer_recommendation": "",
+        },
+    )
 
 
 async def analyze_candidate_for_job(
@@ -117,14 +108,15 @@ async def analyze_candidate_for_job(
     candidate_cv_text: Optional[str] = None,
     candidate_profile: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    prompt = f"""
+    prompt = _json_prompt(
+        f"""
 Analyze this candidate against the role.
 
 Job Title:
 {job_title}
 
 Job Description:
-{job_description}
+{compact_text(job_description, 5000)}
 
 Candidate Name:
 {candidate_name or "Not provided"}
@@ -133,10 +125,9 @@ Candidate Profile:
 {json.dumps(candidate_profile or {}, ensure_ascii=False, indent=2)}
 
 Candidate CV Text:
-{candidate_cv_text or "Not provided"}
+{compact_text(candidate_cv_text, 6000)}
 
-Return ONLY valid JSON:
-
+JSON structure:
 {{
   "candidate_name": "",
   "fit_score": 0,
@@ -151,8 +142,26 @@ Return ONLY valid JSON:
   "reasoning": ""
 }}
 """
-    response = await _call_ai(prompt)
-    return _extract_json(response)
+    )
+
+    return generate_json(
+        prompt,
+        temperature=0.3,
+        max_tokens=1600,
+        fallback={
+            "candidate_name": candidate_name or "",
+            "fit_score": 0,
+            "fit_level": "Low",
+            "summary": "",
+            "matching_skills": [],
+            "missing_skills": [],
+            "relevant_experience": [],
+            "concerns": [],
+            "recommended_interview_questions": [],
+            "hiring_recommendation": "Hold",
+            "reasoning": "",
+        },
+    )
 
 
 async def rank_candidates_for_job(
@@ -160,20 +169,20 @@ async def rank_candidates_for_job(
     job_description: str,
     candidates: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    prompt = f"""
+    prompt = _json_prompt(
+        f"""
 Rank these candidates for the role using only job-relevant evidence.
 
 Job Title:
 {job_title}
 
 Job Description:
-{job_description}
+{compact_text(job_description, 5000)}
 
 Candidates:
-{json.dumps(candidates, ensure_ascii=False, indent=2)}
+{compact_text(json.dumps(candidates, ensure_ascii=False, indent=2), 10000)}
 
-Return ONLY valid JSON:
-
+JSON structure:
 {{
   "role": "",
   "total_candidates_reviewed": 0,
@@ -192,8 +201,20 @@ Return ONLY valid JSON:
   "overall_employer_note": ""
 }}
 """
-    response = await _call_ai(prompt)
-    return _extract_json(response)
+    )
+
+    return generate_json(
+        prompt,
+        temperature=0.3,
+        max_tokens=1800,
+        fallback={
+            "role": job_title,
+            "total_candidates_reviewed": len(candidates or []),
+            "top_candidates": [],
+            "shortlist_recommendation": [],
+            "overall_employer_note": "",
+        },
+    )
 
 
 async def generate_interview_pack(
@@ -202,23 +223,23 @@ async def generate_interview_pack(
     candidate_name: Optional[str] = None,
     candidate_cv_text: Optional[str] = None,
 ) -> Dict[str, Any]:
-    prompt = f"""
+    prompt = _json_prompt(
+        f"""
 Create a practical interview pack.
 
 Job Title:
 {job_title}
 
 Job Description:
-{job_description}
+{compact_text(job_description, 5000)}
 
 Candidate Name:
 {candidate_name or "Not provided"}
 
 Candidate CV:
-{candidate_cv_text or "Not provided"}
+{compact_text(candidate_cv_text, 6000)}
 
-Return ONLY valid JSON:
-
+JSON structure:
 {{
   "interview_objective": "",
   "opening_questions": [],
@@ -236,8 +257,23 @@ Return ONLY valid JSON:
   "post_interview_decision_guide": []
 }}
 """
-    response = await _call_ai(prompt)
-    return _extract_json(response)
+    )
+
+    return generate_json(
+        prompt,
+        temperature=0.3,
+        max_tokens=1600,
+        fallback={
+            "interview_objective": "",
+            "opening_questions": [],
+            "technical_questions": [],
+            "behavioral_questions": [],
+            "experience_validation_questions": [],
+            "culture_and_role_fit_questions": [],
+            "scorecard": [],
+            "post_interview_decision_guide": [],
+        },
+    )
 
 
 async def improve_job_description(
@@ -246,7 +282,8 @@ async def improve_job_description(
     industry: Optional[str] = None,
     experience_level: Optional[str] = None,
 ) -> Dict[str, Any]:
-    prompt = f"""
+    prompt = _json_prompt(
+        f"""
 Rewrite and improve this job description.
 
 Job Title: {job_title}
@@ -254,10 +291,9 @@ Industry: {industry or "Not provided"}
 Experience Level: {experience_level or "Not provided"}
 
 Draft Description:
-{draft_description}
+{compact_text(draft_description, 6000)}
 
-Return ONLY valid JSON:
-
+JSON structure:
 {{
   "improved_job_description": "",
   "job_summary": "",
@@ -270,5 +306,21 @@ Return ONLY valid JSON:
   "improvement_notes": []
 }}
 """
-    response = await _call_ai(prompt)
-    return _extract_json(response)
+    )
+
+    return generate_json(
+        prompt,
+        temperature=0.3,
+        max_tokens=1600,
+        fallback={
+            "improved_job_description": "",
+            "job_summary": "",
+            "responsibilities": [],
+            "requirements": [],
+            "skills": [],
+            "benefits_or_value_proposition": [],
+            "seo_keywords": [],
+            "quality_score": 0,
+            "improvement_notes": [],
+        },
+    )
