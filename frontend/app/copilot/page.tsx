@@ -96,7 +96,22 @@ export default function CopilotPage() {
   }, [contextText]);
 
   async function saveHistory(data: any, askedQuestion: string) {
-    if (!userId) return;
+    const localItem: CopilotHistoryItem = {
+      id: `local-${Date.now()}`,
+      user_role: userRole,
+      conversation_title: askedQuestion.slice(0, 80),
+      question: askedQuestion,
+      answer: data,
+      detected_intent: data?.detected_intent || data?.intent || "general",
+      specialist_used: data?.specialist_used || "TalentIQ Copilot",
+      context: parsedContext,
+      created_at: new Date().toISOString(),
+    };
+
+    if (!userId) {
+      setHistory((prev) => [...prev, localItem].slice(-50));
+      return;
+    }
 
     const { data: saved, error } = await supabase
       .from("copilot_history")
@@ -115,7 +130,8 @@ export default function CopilotPage() {
 
     if (error) {
       console.error("Copilot history save error:", error);
-      setMessage("Response generated but could not be saved to history.");
+      setMessage(error.message || "Response generated but could not be saved to history.");
+      setHistory((prev) => [...prev, localItem].slice(-50));
       return;
     }
 
