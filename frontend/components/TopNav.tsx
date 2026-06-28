@@ -124,6 +124,7 @@ export default function TopNav() {
                 <DropdownLink href="/recommended-jobs">Recommended Jobs</DropdownLink>
                 <DropdownLink href="/cv-intelligence">CV Intelligence Pro</DropdownLink>
                 <DropdownLink href="/career-iq">CareerIQ</DropdownLink>
+                <DropdownLink href="/institution-intelligence">Institution Intelligence</DropdownLink>
    
               </Dropdown>
 

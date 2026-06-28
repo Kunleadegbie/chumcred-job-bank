@@ -46,6 +46,14 @@ from app.services.employer_ai import (
     improve_job_description,
 )
 
+from app.services.institution_ai import (
+    generate_institution_dashboard,
+    analyze_employability,
+    analyze_skills_gap,
+    generate_curriculum_intelligence,
+    generate_institution_recommendations,
+)
+
 
 app = FastAPI(
     title="Chumcred Global Job Bank API",
@@ -1404,5 +1412,60 @@ async def employer_ai_improve_job_description(payload: dict):
         experience_level=payload.get("experience_level"),
     )
 
+
+@app.post("/institution-ai/dashboard")
+async def institution_ai_dashboard(payload: dict):
+    return await generate_institution_dashboard(
+        institution_name=payload.get("institution_name", ""),
+        institution_type=payload.get("institution_type"),
+        location=payload.get("location"),
+        total_students=payload.get("total_students"),
+        total_graduates=payload.get("total_graduates"),
+        departments=payload.get("departments", []),
+        graduate_data=payload.get("graduate_data", []),
+        employer_data=payload.get("employer_data", []),
+        programme_data=payload.get("programme_data", []),
+    )
+
+
+@app.post("/institution-ai/employability")
+async def institution_ai_employability(payload: dict):
+    return await analyze_employability(
+        institution_name=payload.get("institution_name", ""),
+        graduate_data=payload.get("graduate_data", []),
+        departments=payload.get("departments", []),
+    )
+
+
+@app.post("/institution-ai/skills-gap")
+async def institution_ai_skills_gap(payload: dict):
+    return await analyze_skills_gap(
+        institution_name=payload.get("institution_name", ""),
+        graduate_skills=payload.get("graduate_skills", []),
+        employer_required_skills=payload.get("employer_required_skills", []),
+        programme_data=payload.get("programme_data", []),
+    )
+
+
+@app.post("/institution-ai/curriculum")
+async def institution_ai_curriculum(payload: dict):
+    return await generate_curriculum_intelligence(
+        institution_name=payload.get("institution_name", ""),
+        departments=payload.get("departments", []),
+        programme_data=payload.get("programme_data", []),
+        employer_required_skills=payload.get("employer_required_skills", []),
+        labour_market_notes=payload.get("labour_market_notes"),
+    )
+
+
+@app.post("/institution-ai/recommendations")
+async def institution_ai_recommendations(payload: dict):
+    return await generate_institution_recommendations(
+        institution_name=payload.get("institution_name", ""),
+        dashboard_data=payload.get("dashboard_data", {}),
+        employability_data=payload.get("employability_data", {}),
+        skills_gap_data=payload.get("skills_gap_data", {}),
+        curriculum_data=payload.get("curriculum_data", {}),
+    )
 
 
