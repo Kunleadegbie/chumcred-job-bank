@@ -45,7 +45,7 @@ export default function MyEnterpriseAccountsPage() {
 
     if (error) {
       console.error(error);
-      setMessage("Unable to load enterprise accounts.");
+      setMessage(error.message);
       setLoading(false);
       return;
     }
