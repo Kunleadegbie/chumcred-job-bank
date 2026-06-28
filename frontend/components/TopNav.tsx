@@ -97,6 +97,7 @@ export default function TopNav() {
             <DropdownLink href="/jobs?visa=true">Visa Sponsorship Jobs</DropdownLink>
           </Dropdown>
           <Link href="/employer">Employers</Link>
+          <Link href="/enterprise">Enterprise</Link>
 
           {loggedIn ? (
             <>
@@ -149,6 +150,7 @@ export default function TopNav() {
                 <Dropdown title="Admin">
                   <DropdownLink href="/admin">Admin Dashboard</DropdownLink>
                   <DropdownLink href="/admin-intelligence">Admin Intelligence</DropdownLink>
+                  <DropdownLink href="/enterprise/my-accounts">Enterprise Accounts</DropdownLink>
                   <DropdownLink href="/admin/jobs">Manage Jobs</DropdownLink>
                   <DropdownLink href="/admin/sources">Job Sources</DropdownLink>
                   <DropdownLink href="/admin/clicks">
