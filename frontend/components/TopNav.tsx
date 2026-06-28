@@ -148,6 +148,7 @@ export default function TopNav() {
               {isAdmin && (
                 <Dropdown title="Admin">
                   <DropdownLink href="/admin">Admin Dashboard</DropdownLink>
+                  <DropdownLink href="/admin-intelligence">Admin Intelligence</DropdownLink>
                   <DropdownLink href="/admin/jobs">Manage Jobs</DropdownLink>
                   <DropdownLink href="/admin/sources">Job Sources</DropdownLink>
                   <DropdownLink href="/admin/clicks">

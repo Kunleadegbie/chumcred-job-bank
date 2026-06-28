@@ -54,6 +54,13 @@ from app.services.institution_ai import (
     generate_institution_recommendations,
 )
 
+from app.services.admin_ai import (
+    generate_admin_dashboard_intelligence,
+    analyze_platform_growth,
+    analyze_revenue_opportunities,
+    analyze_admin_risks,
+    generate_admin_recommendations,
+)
 
 app = FastAPI(
     title="Chumcred Global Job Bank API",
@@ -1466,6 +1473,64 @@ async def institution_ai_recommendations(payload: dict):
         employability_data=payload.get("employability_data", {}),
         skills_gap_data=payload.get("skills_gap_data", {}),
         curriculum_data=payload.get("curriculum_data", {}),
+    )
+
+
+@app.post("/admin-ai/dashboard")
+async def admin_ai_dashboard(payload: dict):
+    return await generate_admin_dashboard_intelligence(
+        platform_name=payload.get("platform_name", "TalentIQ"),
+        student_metrics=payload.get("student_metrics", {}),
+        employer_metrics=payload.get("employer_metrics", {}),
+        institution_metrics=payload.get("institution_metrics", {}),
+        ai_usage_metrics=payload.get("ai_usage_metrics", {}),
+        revenue_metrics=payload.get("revenue_metrics", {}),
+        operational_metrics=payload.get("operational_metrics", {}),
+    )
+
+
+@app.post("/admin-ai/growth")
+async def admin_ai_growth(payload: dict):
+    return await analyze_platform_growth(
+        platform_name=payload.get("platform_name", "TalentIQ"),
+        user_growth_data=payload.get("user_growth_data", {}),
+        traffic_data=payload.get("traffic_data", {}),
+        conversion_data=payload.get("conversion_data", {}),
+        engagement_data=payload.get("engagement_data", {}),
+    )
+
+
+@app.post("/admin-ai/revenue")
+async def admin_ai_revenue(payload: dict):
+    return await analyze_revenue_opportunities(
+        platform_name=payload.get("platform_name", "TalentIQ"),
+        subscription_data=payload.get("subscription_data", {}),
+        payment_data=payload.get("payment_data", {}),
+        employer_data=payload.get("employer_data", {}),
+        institution_data=payload.get("institution_data", {}),
+        pricing_notes=payload.get("pricing_notes"),
+    )
+
+
+@app.post("/admin-ai/risks")
+async def admin_ai_risks(payload: dict):
+    return await analyze_admin_risks(
+        platform_name=payload.get("platform_name", "TalentIQ"),
+        technical_metrics=payload.get("technical_metrics", {}),
+        user_activity_data=payload.get("user_activity_data", {}),
+        payment_activity_data=payload.get("payment_activity_data", {}),
+        moderation_notes=payload.get("moderation_notes"),
+    )
+
+
+@app.post("/admin-ai/recommendations")
+async def admin_ai_recommendations(payload: dict):
+    return await generate_admin_recommendations(
+        platform_name=payload.get("platform_name", "TalentIQ"),
+        dashboard_intelligence=payload.get("dashboard_intelligence", {}),
+        growth_intelligence=payload.get("growth_intelligence", {}),
+        revenue_intelligence=payload.get("revenue_intelligence", {}),
+        risk_intelligence=payload.get("risk_intelligence", {}),
     )
 
 
