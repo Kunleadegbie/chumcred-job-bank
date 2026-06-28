@@ -346,29 +346,7 @@ export default function DashboardPage() {
                   >
                     Practice Interview
                   </Link>
-                  <Link
-  href="/institution-intelligence"
-  className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
->
-  <div className="flex items-center justify-between gap-4">
-    <div>
-      <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-        Institutional Analytics
-      </p>
-      <h3 className="mt-2 text-2xl font-bold text-slate-900">
-        Institution Intelligence
-      </h3>
-      <p className="mt-2 text-sm text-slate-600">
-        Analyze employability, graduate readiness, skills gaps, curriculum
-        alignment, employer demand, and institutional performance.
-      </p>
-    </div>
-
-    <div className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">
-      Open
-    </div>
-  </div>
-</Link>
+                  
                 </div>
               </div>
             ))}
@@ -393,6 +371,7 @@ export default function DashboardPage() {
           <QuickLink href="/ai-match-score" label="AI Match Score" />
           <QuickLink href="/ai-match-history" label="AI Match History" />
           <QuickLink href="/career-iq" label="CareerIQ" />
+          <QuickLink href="/institution-intelligence" label="Institution Intelligence" />
         </div>
       </section>
     </main>
@@ -470,11 +449,5 @@ function QuickLink({
     >
       {label}
     </Link>
-    
-    <div className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">
-      Open
-    </div>
-  </div>
-</Link>
   );
 }
