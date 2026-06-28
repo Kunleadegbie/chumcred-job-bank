@@ -13,6 +13,7 @@ from app.services.interview_readiness import calculate_interview_readiness
 from app.services.cv_intelligence import calculate_cv_intelligence
 from app.services.cv_rewrite import rewrite_cv_for_job
 from app.services.career_iq import generate_career_iq_report
+from app.services.talentiq_copilot import run_talentiq_copilot
 
 
 from app.tasks.fetch_jobs_task import run_job_fetch_task
@@ -1534,3 +1535,10 @@ async def admin_ai_recommendations(payload: dict):
     )
 
 
+@app.post("/copilot/chat")
+async def talentiq_copilot_chat(payload: dict):
+    return await run_talentiq_copilot(
+        question=payload.get("question", ""),
+        user_role=payload.get("user_role"),
+        context=payload.get("context", {}),
+    )

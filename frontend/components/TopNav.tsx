@@ -111,6 +111,7 @@ export default function TopNav() {
               </Dropdown>
 
               <Dropdown title="AI Tools">
+                <DropdownLink href="/copilot">TalentIQ Copilot</DropdownLink>
                 <DropdownLink href="/job-match">AI Job Match</DropdownLink>
                 <DropdownLink href="/ai-career-coach">
                   AI Career Coach
