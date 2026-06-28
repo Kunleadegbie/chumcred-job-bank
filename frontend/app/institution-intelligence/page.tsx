@@ -39,10 +39,10 @@ export default function InstitutionIntelligencePage() {
     location: "",
     total_students: "",
     total_graduates: "",
-    departments_json: "",
-    graduate_data_json: "",
-    employer_data_json: "",
-    programme_data_json: "",
+    departments_summary: "",
+    graduate_readiness_summary: "",
+    employer_demand_summary: "",
+    programmes_summary: "",
     graduate_skills: "",
     employer_required_skills: "",
     labour_market_notes: "",
@@ -86,20 +86,24 @@ export default function InstitutionIntelligencePage() {
     setHistoryLoading(false);
   }
 
-  function parseJson(value: string, fallback: any) {
-    if (!value.trim()) return fallback;
-    try {
-      return JSON.parse(value);
-    } catch {
-      return fallback;
-    }
-  }
-
   function parseList(value: string) {
     return value
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  function textToData(label: string, text: string) {
+    if (!text.trim()) return [];
+
+    return text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => ({
+        category: label,
+        description: line,
+      }));
   }
 
   const payload = useMemo(() => {
@@ -109,11 +113,18 @@ export default function InstitutionIntelligencePage() {
       institution_type: form.institution_type,
       location: form.location,
       total_students: form.total_students ? Number(form.total_students) : null,
-      total_graduates: form.total_graduates ? Number(form.total_graduates) : null,
-      departments: parseJson(form.departments_json, []),
-      graduate_data: parseJson(form.graduate_data_json, []),
-      employer_data: parseJson(form.employer_data_json, []),
-      programme_data: parseJson(form.programme_data_json, []),
+      total_graduates: form.total_graduates
+        ? Number(form.total_graduates)
+        : null,
+
+      departments: textToData("department_or_faculty", form.departments_summary),
+      graduate_data: textToData(
+        "graduate_readiness",
+        form.graduate_readiness_summary
+      ),
+      employer_data: textToData("employer_demand", form.employer_demand_summary),
+      programme_data: textToData("programme_or_course", form.programmes_summary),
+
       graduate_skills: parseList(form.graduate_skills),
       employer_required_skills: parseList(form.employer_required_skills),
       labour_market_notes: form.labour_market_notes,
@@ -255,11 +266,13 @@ export default function InstitutionIntelligencePage() {
                 label="Institution Type"
                 value={form.institution_type}
                 onChange={(v) => updateForm("institution_type", v)}
+                placeholder="University, Polytechnic, College, Bootcamp"
               />
               <Input
                 label="Location"
                 value={form.location}
                 onChange={(v) => updateForm("location", v)}
+                placeholder="Lagos, Nigeria"
               />
               <Input
                 label="Total Students"
@@ -274,50 +287,65 @@ export default function InstitutionIntelligencePage() {
             </div>
 
             <Textarea
-              label="Departments JSON"
-              value={form.departments_json}
-              onChange={(v) => updateForm("departments_json", v)}
-              placeholder='Example: [{"department":"Computer Science","graduates":120},{"department":"Accounting","graduates":80}]'
+              label="Departments / Faculties"
+              value={form.departments_summary}
+              onChange={(v) => updateForm("departments_summary", v)}
+              placeholder="Example:
+Computer Science - 1,200 graduates
+Accounting - 900 graduates
+Engineering - 1,500 graduates
+Economics - 700 graduates"
             />
 
             <Textarea
-              label="Graduate Data JSON"
-              value={form.graduate_data_json}
-              onChange={(v) => updateForm("graduate_data_json", v)}
-              placeholder='Example: [{"department":"Computer Science","skills":["SQL","Python"],"job_ready":true}]'
+              label="Graduate Skills and Readiness Summary"
+              value={form.graduate_readiness_summary}
+              onChange={(v) => updateForm("graduate_readiness_summary", v)}
+              placeholder="Example:
+Computer Science graduates have Python, SQL and data analysis skills.
+Accounting graduates are strong in Excel and financial reporting.
+Some Engineering graduates need stronger internship exposure.
+Many students need better presentation and workplace communication skills."
             />
 
             {(action === "dashboard" || action === "curriculum") && (
               <Textarea
-                label="Programme Data JSON"
-                value={form.programme_data_json}
-                onChange={(v) => updateForm("programme_data_json", v)}
-                placeholder='Example: [{"programme":"BSc Computer Science","courses":["Database","Programming"]}]'
+                label="Programmes / Courses Offered"
+                value={form.programmes_summary}
+                onChange={(v) => updateForm("programmes_summary", v)}
+                placeholder="Example:
+BSc Computer Science offers Programming, Database Systems and Software Engineering.
+BSc Accounting offers Financial Accounting, Auditing and Taxation.
+Economics offers Statistics, Microeconomics and Macroeconomics."
               />
             )}
 
             {action === "dashboard" && (
               <Textarea
-                label="Employer Data JSON"
-                value={form.employer_data_json}
-                onChange={(v) => updateForm("employer_data_json", v)}
-                placeholder='Example: [{"employer":"Access Bank","roles":["Analyst"],"required_skills":["Excel","SQL"]}]'
+                label="Employer Demand / Hiring Needs"
+                value={form.employer_demand_summary}
+                onChange={(v) => updateForm("employer_demand_summary", v)}
+                placeholder="Example:
+Banks need analysts with Excel, SQL and Power BI.
+Telecom companies need data analysis, communication and customer insight skills.
+Consulting firms need presentation, financial analysis and problem-solving skills."
               />
             )}
 
             {(action === "skills_gap" || action === "curriculum") && (
               <>
                 <Textarea
-                  label="Graduate Skills"
+                  label="Current Graduate Skills"
                   value={form.graduate_skills}
                   onChange={(v) => updateForm("graduate_skills", v)}
-                  placeholder="Excel, Communication, Accounting, Python"
+                  placeholder="Excel, Communication, Accounting, Python, SQL"
                 />
+
                 <Textarea
                   label="Employer Required Skills"
                   value={form.employer_required_skills}
                   onChange={(v) => updateForm("employer_required_skills", v)}
-                  placeholder="Power BI, SQL, Data Analysis, Presentation"
+                  placeholder="Power BI, SQL, Data Analysis, Presentation, Problem Solving"
                 />
               </>
             )}
@@ -327,6 +355,7 @@ export default function InstitutionIntelligencePage() {
                 label="Labour Market Notes"
                 value={form.labour_market_notes}
                 onChange={(v) => updateForm("labour_market_notes", v)}
+                placeholder="Example: Employers increasingly require digital skills, communication, analytics, internship experience and practical project portfolios."
               />
             )}
 
@@ -409,16 +438,19 @@ function Input({
   label,
   value,
   onChange,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  placeholder?: string;
 }) {
   return (
     <label className="block">
       <span className="text-sm font-semibold text-slate-300">{label}</span>
       <input
         value={value}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 p-3 text-white outline-none focus:border-emerald-400"
       />
