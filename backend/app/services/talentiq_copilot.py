@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional
 
 from app.services.ai_client import generate_json, generate_text, compact_text
 
-from app.services.career_iq import generate_career_coach_response
 from app.services.employer_ai import (
     generate_job_intelligence,
     analyze_candidate_for_job,
@@ -162,27 +161,60 @@ async def handle_career_intent(
     user_role: Optional[str] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    career_profile = context or {}
+    prompt = _json_prompt(
+        f"""
+Provide practical career coaching for this TalentIQ user.
 
-    try:
-        result = await generate_career_coach_response(
-            user_message=question,
-            career_profile=career_profile,
-        )
+User Role:
+{user_role or "Not provided"}
 
-        return {
+Question:
+{compact_text(question, 5000)}
+
+Context:
+{compact_text(json.dumps(context or {}, ensure_ascii=False, indent=2), 8000)}
+
+JSON structure:
+{{
+  "intent": "career",
+  "career_summary": "",
+  "employability_score_estimate": 0,
+  "strengths": [],
+  "career_gaps": [],
+  "recommended_roles": [],
+  "skills_to_improve": [],
+  "thirty_day_action_plan": [],
+  "ninety_day_action_plan": [],
+  "recommended_talentiq_tools": [],
+  "final_advice": ""
+}}
+"""
+    )
+
+    result = generate_json(
+        prompt,
+        temperature=0.3,
+        max_tokens=1600,
+        fallback={
             "intent": "career",
-            "answer": result,
-            "specialist_used": "CareerIQ",
-        }
-    except Exception as error:
-        return {
-            "intent": "career",
-            "answer": f"CareerIQ could not complete this request: {str(error)}",
-            "specialist_used": "CareerIQ",
-            "error": str(error),
-        }
+            "career_summary": "",
+            "employability_score_estimate": 0,
+            "strengths": [],
+            "career_gaps": [],
+            "recommended_roles": [],
+            "skills_to_improve": [],
+            "thirty_day_action_plan": [],
+            "ninety_day_action_plan": [],
+            "recommended_talentiq_tools": [],
+            "final_advice": "",
+        },
+    )
 
+    return {
+        "intent": "career",
+        "answer": result,
+        "specialist_used": "TalentIQ Career Copilot",
+    }
 
 async def handle_cv_intent(
     question: str,
