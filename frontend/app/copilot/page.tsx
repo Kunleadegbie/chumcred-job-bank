@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { deductAiCredits, hasEnoughCredits } from "@/lib/ai-credits";
 
 type CopilotHistoryItem = {
   id: string;
@@ -149,6 +150,14 @@ export default function CopilotPage() {
     setLoading(true);
     setMessage("");
 
+    const creditCheck = await hasEnoughCredits("copilot");
+
+    if (!creditCheck.allowed) {
+      setMessage(creditCheck.message);
+      setLoading(false);
+      return;
+    }
+
     const optimisticUserMessage: CopilotHistoryItem = {
       id: `temp-${Date.now()}`,
       user_role: userRole,
@@ -200,6 +209,15 @@ export default function CopilotPage() {
       );
 
       await saveHistory(data, finalQuestion);
+      const creditResult = await deductAiCredits({
+        toolName: "copilot",
+        action: data?.detected_intent || "copilot_chat",
+        requestSummary: finalQuestion.slice(0, 250),
+      });
+
+      if (!creditResult.success) {
+        setMessage(creditResult.error || "AI response generated, but credits were not    deducted.");
+      }
     } catch {
       setHistory((prev) =>
         prev.map((item) =>
