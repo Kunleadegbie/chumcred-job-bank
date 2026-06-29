@@ -35,7 +35,7 @@ export default function AdminOperationsPage() {
       setAdminAllowed(true);
       setAuthChecking(false);
 
-      await loadPayments();
+      await loadOperationsData();
     }
 
     initPage();
