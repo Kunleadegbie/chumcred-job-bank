@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -21,6 +21,22 @@ type Plan = {
 };
 
 export default function SubscriptionPage() {
+  return (
+    <Suspense fallback={<SubscriptionLoading />}>
+      <SubscriptionContent />
+    </Suspense>
+  );
+}
+
+function SubscriptionLoading() {
+  return (
+    <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
+      <p className="text-slate-300">Loading subscription page...</p>
+    </main>
+  );
+}
+
+function SubscriptionContent() {  
   const searchParams = useSearchParams();
   const selectedPlanCode = searchParams.get("plan");
 
