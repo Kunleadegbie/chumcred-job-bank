@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { requireAdminUser } from "@/lib/admin-auth";
 
 type PaymentRecord = {
   id: string;
@@ -38,8 +39,24 @@ export default function AdminSubscriptionsPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [message, setMessage] = useState("");
+  const [adminAllowed, setAdminAllowed] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
 
   useEffect(() => {
+    checkAdminAccess();
+  }, []);
+
+  async function checkAdminAccess() {
+    const { isAdmin } = await requireAdminUser();
+
+    if (!isAdmin) {
+      window.location.href = "/dashboard";
+      return;
+    }
+
+    setAdminAllowed(true);
+    setAuthChecking(false);
+  }
     loadPayments();
   }, []);
 
@@ -255,6 +272,16 @@ export default function AdminSubscriptionsPage() {
       </main>
     );
   }
+
+  if (authChecking) {
+    return (
+      <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
+        <p className="text-slate-300">Checking admin access...</p>
+      </main>
+    );
+  }
+
+  if (!adminAllowed) return null;  
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">

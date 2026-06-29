@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { requireAdminUser } from "@/lib/admin-auth";
 
 type Payment = {
   id: string;
@@ -52,8 +53,24 @@ export default function AdminCommercialPage() {
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [message, setMessage] = useState("");
+  const [adminAllowed, setAdminAllowed] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
 
   useEffect(() => {
+    checkAdminAccess();
+  }, []);
+
+  async function checkAdminAccess() {
+    const { isAdmin } = await requireAdminUser();
+
+    if (!isAdmin) {
+      window.location.href = "/dashboard";
+      return;
+    }
+
+    setAdminAllowed(true);
+    setAuthChecking(false);
+  }
     loadCommercialDashboard();
   }, []);
 
@@ -158,6 +175,15 @@ export default function AdminCommercialPage() {
     );
   }
 
+  if (authChecking) {
+    return (
+      <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
+        <p className="text-slate-300">Checking admin access...</p>
+      </main>
+    );
+  }
+
+  if (!adminAllowed) return null;
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-7xl px-6 py-10">
