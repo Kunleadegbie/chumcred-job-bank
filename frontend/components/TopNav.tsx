@@ -154,7 +154,9 @@ export default function TopNav() {
                   <DropdownLink href="/admin-intelligence">Admin Intelligence</DropdownLink>
                   <DropdownLink href="/enterprise/my-accounts">Enterprise Accounts</DropdownLink>
                   <DropdownLink href="/admin/subscriptions">Subscription Approvals</DropdownLink>
-                  <DropdownLink href="/admin/commercial">Commercial Dashboard</DropdownLink>
+                  <DropdownLink href="/admin/commercial">Commercial
+Dashboard</DropdownLink>
+                  <DropdownLink href="/admin/operations">Operations Center</DropdownLink>
                   <DropdownLink href="/admin/jobs">Manage Jobs</DropdownLink>
                   <DropdownLink href="/admin/sources">Job Sources</DropdownLink>
                   <DropdownLink href="/admin/clicks">
@@ -164,8 +166,7 @@ export default function TopNav() {
                   <DropdownLink href="/admin/employer-payments">
                     Employer Payments
                   </DropdownLink>
-                  <DropdownLink href="/admin">Admin Dashboard</DropdownLink>
-
+                  <DropdownLink href="/admin">Admin Dashboard</DropdownLink>                  
                   <DropdownLink href="/employer-ai">
                     EmployerAI
                   </DropdownLink>
