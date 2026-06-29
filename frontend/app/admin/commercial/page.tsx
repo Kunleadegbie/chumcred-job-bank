@@ -57,21 +57,18 @@ export default function AdminCommercialPage() {
   const [authChecking, setAuthChecking] = useState(true);
 
   useEffect(() => {
-    checkAdminAccess();
-  }, []);
+    async function initPage() {
+      const { isAdmin } = await requireAdminUser();
 
-  async function checkAdminAccess() {
-    const { isAdmin } = await requireAdminUser();
+      if (!isAdmin) {
+        window.location.href = "/dashboard";
+        return;
+      }
 
-    if (!isAdmin) {
-      window.location.href = "/dashboard";
-      return;
+      await loadCommercialDashboard();
     }
 
-    setAdminAllowed(true);
-    setAuthChecking(false);
-  }
-    loadCommercialDashboard();
+    initPage();
   }, []);
 
   async function loadCommercialDashboard() {

@@ -43,21 +43,18 @@ export default function AdminSubscriptionsPage() {
   const [authChecking, setAuthChecking] = useState(true);
 
   useEffect(() => {
-    checkAdminAccess();
-  }, []);
+    async function initPage() {
+      const { isAdmin } = await requireAdminUser();
 
-  async function checkAdminAccess() {
-    const { isAdmin } = await requireAdminUser();
+      if (!isAdmin) {
+        window.location.href = "/dashboard";
+        return;
+      }
 
-    if (!isAdmin) {
-      window.location.href = "/dashboard";
-      return;
+      await loadPayments();
     }
 
-    setAdminAllowed(true);
-    setAuthChecking(false);
-  }
-    loadPayments();
+    initPage();
   }, []);
 
   async function loadPayments() {
