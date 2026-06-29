@@ -21,6 +21,7 @@ AI_CREDIT_COSTS: Dict[str, int] = {
     "interview_iq": 5,
     "employer_ai": 10,
     "institution_ai": 20,
+    "operations_ai": 20,
     "admin_ai": 15,
     "copilot": 5,
 }

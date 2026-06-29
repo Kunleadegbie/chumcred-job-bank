@@ -72,6 +72,11 @@ from app.services.credit_manager import (
     CreditError,
 )
 
+
+from app.services.operations_ai import (
+    generate_operations_intelligence,
+)
+
 app = FastAPI(
     title="Chumcred Global Job Bank API",
     version="1.0.0"
@@ -1646,6 +1651,25 @@ async def talentiq_copilot_chat(payload: dict):
         ),
     )
 
+class OperationsAIRequest(BaseModel):
+    user_id: str
+
+    platform_name: str = "TalentIQ"
+
+    ai_usage_data: dict = {}
+
+    credit_data: dict = {}
+
+    payment_data: dict = {}
+
+    subscription_data: dict = {}
+
+    enterprise_data: dict = {}
+
+    error_data: dict = {}
+
+    operational_notes: Optional[str] = None
+
 async def run_ai_with_credit_guard(
     payload: dict,
     tool_name: str,
@@ -1708,3 +1732,27 @@ async def run_ai_with_credit_guard(
             error_message=str(error),
         )
         raise
+
+
+@app.post("/operations-ai/dashboard")
+async def operations_ai_dashboard(
+    request: OperationsAIRequest,
+):
+    payload = request.model_dump()
+
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="admin_ai",      # Uses the Admin AI credit bucket (15 credits)
+        action="operations_dashboard",
+        request_summary=f"OperationsAI dashboard for {request.platform_name}",
+        ai_callable=lambda: generate_operations_intelligence(
+            platform_name=request.platform_name,
+            ai_usage_data=request.ai_usage_data,
+            credit_data=request.credit_data,
+            payment_data=request.payment_data,
+            subscription_data=request.subscription_data,
+            enterprise_data=request.enterprise_data,
+            error_data=request.error_data,
+            operational_notes=request.operational_notes,
+        ),
+    )
