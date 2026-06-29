@@ -54,7 +54,7 @@ export default function AdminSubscriptionsPage() {
       setAdminAllowed(true);
       setAuthChecking(false);
 
-      await loadCommercialDashboard();
+      await loadPayments();
     }
 
     initPage();
