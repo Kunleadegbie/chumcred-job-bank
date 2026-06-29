@@ -46,6 +46,8 @@ function SubscriptionContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const [form, setForm] = useState({
     payment_reference: "",
@@ -111,6 +113,35 @@ function SubscriptionContent() {
     }).format(amount);
   }
 
+  async function uploadReceiptIfAvailable() {
+    if (!receiptFile || !userId) return form.receipt_url;
+
+    setUploadingReceipt(true);
+
+    const fileExt = receiptFile.name.split(".").pop();
+    const filePath = `${userId}/${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabaseBrowser.storage
+      .from("payment-receipts")
+      .upload(filePath, receiptFile, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      setUploadingReceipt(false);
+      throw uploadError;
+    }
+
+    const { data } = supabaseBrowser.storage
+      .from("payment-receipts")
+      .getPublicUrl(filePath);
+
+    setUploadingReceipt(false);
+
+    return data.publicUrl;
+  }
+
   async function submitSubscriptionRequest() {
     setSubmitting(true);
     setMessage("");
@@ -143,6 +174,17 @@ function SubscriptionContent() {
     if (subscriptionError || !subscription) {
       console.error(subscriptionError);
       setMessage("Unable to create subscription request.");
+      setSubmitting(false);
+      return;
+    }
+
+    receipt_url: finalReceiptUrl,
+
+    try {
+      finalReceiptUrl = await uploadReceiptIfAvailable();
+    } catch (error: any) {
+      console.error(error);
+      setMessage(error?.message || "Unable to upload payment receipt.");
       setSubmitting(false);
       return;
     }
@@ -321,6 +363,20 @@ function SubscriptionContent() {
                 placeholder="Paste receipt link if uploaded elsewhere"
               />
 
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-300">
+                  Upload Payment Receipt
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 p-3 text-white outline-none focus:border-blue-400"
+                />
+                <p className="mt-2 text-xs text-slate-400">
+                  Upload receipt as image or PDF. You may also paste a receipt URL above.
+                </p>
+              </label>
               <Textarea
                 label="Payment Narration / Note"
                 value={form.narration}
@@ -331,10 +387,10 @@ function SubscriptionContent() {
 
             <button
               onClick={submitSubscriptionRequest}
-              disabled={submitting}
+              disabled={submitting || uploadingReceipt}
               className="mt-6 w-full rounded-2xl bg-blue-500 px-6 py-4 font-bold text-white hover:bg-blue-400 disabled:opacity-50"
             >
-              {submitting
+              {submitting || uploadingReceipt
                 ? "Submitting Subscription..."
                 : "Submit Subscription Request"}
             </button>
