@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { deductAiCredits, hasEnoughCredits } from "@/lib/ai-credits";
 
 type HistoryItem = {
   id: string;
@@ -166,6 +167,14 @@ export default function EmployerAIPage() {
     setLoading(true);
     setResult(null);
     setMessage("");
+       
+      const creditCheck = await hasEnoughCredits("employer_ai");
+
+      if (!creditCheck.allowed) {
+        setMessage(creditCheck.message);
+        setLoading(false);
+        return;
+      }
 
     try {
       const res = await fetch("/api/employer-ai", {
@@ -189,6 +198,22 @@ export default function EmployerAIPage() {
         input: payload,
         result: data,
       });
+
+      const creditResult = await deductAiCredits({
+        toolName: "employer_ai",
+        action,
+        requestSummary: `${form.job_title || "EmployerAI request"} - ${
+          form.company_name || ""
+        }`.slice(0, 250),
+      });
+
+      if (!creditResult.success) {
+        setMessage(
+          creditResult.error ||
+            "AI response generated, but credits were not deducted."
+        );
+      }
+
     } catch {
       setResult({ error: "Unable to connect to EmployerAI." });
     } finally {
@@ -276,7 +301,7 @@ export default function EmployerAIPage() {
 
             <button
               onClick={runEmployerAI}
-              disabled={loading}
+              disabled={loading}              
               className="mt-6 w-full rounded-2xl bg-blue-500 px-6 py-4 font-bold text-white hover:bg-blue-400 disabled:opacity-50"
             >
               {loading ? "Generating EmployerAI Intelligence..." : "Run EmployerAI"}
