@@ -24,23 +24,8 @@ export default function AdminOperationsPage() {
   const [operationalNotes, setOperationalNotes] = useState("");
 
   useEffect(() => {
-    async function initPage() {
-      const { isAdmin } = await requireAdminUser();
-
-      if (!isAdmin) {
-        window.location.href = "/dashboard";
-        return;
-      }
-
-      setAdminAllowed(true);
-      setAuthChecking(false);
-
-      await loadOperationsData();
-    }
-
     initPage();
   }, []);
-
 
   async function initPage() {
     setLoading(true);
@@ -54,7 +39,11 @@ export default function AdminOperationsPage() {
     }
 
     setUserId(user.id);
+    setAdminAllowed(true);
+    setAuthChecking(false);
+
     await loadOperationsData();
+
     setLoading(false);
   }
 
