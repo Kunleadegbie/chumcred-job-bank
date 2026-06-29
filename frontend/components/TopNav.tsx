@@ -22,13 +22,16 @@ export default function TopNav() {
       if (user) {
         const { data: profile } = await supabaseBrowser
           .from("profiles")
-          .select("is_admin,email")
+          .select("is_admin,email,role")
           .eq("id", user.id)
           .maybeSingle();
 
         setIsAdmin(
           Boolean(profile?.is_admin) ||
+            profile?.role === "admin" ||
+            profile?.email === "kadegbie@gmail.com" ||
             profile?.email === "chumcred@gmail.com" ||
+            user.email === "kadegbie@gmail.com" ||
             user.email === "chumcred@gmail.com"
         );
       } else {
