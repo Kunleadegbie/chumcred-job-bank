@@ -63,6 +63,15 @@ from app.services.admin_ai import (
     generate_admin_recommendations,
 )
 
+from fastapi import HTTPException
+
+from app.services.credit_manager import (
+    check_ai_credits,
+    deduct_ai_credits,
+    log_ai_failure,
+    CreditError,
+)
+
 app = FastAPI(
     title="Chumcred Global Job Bank API",
     version="1.0.0"
@@ -1370,175 +1379,331 @@ def career_iq(payload: dict, x_cron_secret: str = Header(default=None)):
 
 @app.post("/employer-ai/job-intelligence")
 async def employer_ai_job_intelligence(payload: dict):
-    return await generate_job_intelligence(
-        job_title=payload.get("job_title", ""),
-        company_name=payload.get("company_name"),
-        industry=payload.get("industry"),
-        location=payload.get("location"),
-        employment_type=payload.get("employment_type"),
-        experience_level=payload.get("experience_level"),
-        job_description=payload.get("job_description"),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="employer_ai",
+        action="job_intelligence",
+        request_summary=payload.get("job_title", "EmployerAI job intelligence"),
+        ai_callable=lambda: generate_job_intelligence(
+            job_title=payload.get("job_title", ""),
+            company_name=payload.get("company_name"),
+            industry=payload.get("industry"),
+            location=payload.get("location"),
+            employment_type=payload.get("employment_type"),
+            experience_level=payload.get("experience_level"),
+            job_description=payload.get("job_description"),
+        ),
     )
 
 
 @app.post("/employer-ai/analyze-candidate")
 async def employer_ai_analyze_candidate(payload: dict):
-    return await analyze_candidate_for_job(
-        job_title=payload.get("job_title", ""),
-        job_description=payload.get("job_description", ""),
-        candidate_name=payload.get("candidate_name"),
-        candidate_cv_text=payload.get("candidate_cv_text"),
-        candidate_profile=payload.get("candidate_profile"),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="employer_ai",
+        action="analyze_candidate",
+        request_summary=payload.get("candidate_name", "EmployerAI candidate analysis"),
+        ai_callable=lambda: analyze_candidate_for_job(
+            job_title=payload.get("job_title", ""),
+            job_description=payload.get("job_description", ""),
+            candidate_name=payload.get("candidate_name"),
+            candidate_cv_text=payload.get("candidate_cv_text"),
+            candidate_profile=payload.get("candidate_profile"),
+        ),
     )
 
 
 @app.post("/employer-ai/rank-candidates")
 async def employer_ai_rank_candidates(payload: dict):
-    return await rank_candidates_for_job(
-        job_title=payload.get("job_title", ""),
-        job_description=payload.get("job_description", ""),
-        candidates=payload.get("candidates", []),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="employer_ai",
+        action="rank_candidates",
+        request_summary=payload.get("job_title", "EmployerAI candidate ranking"),
+        ai_callable=lambda: rank_candidates_for_job(
+            job_title=payload.get("job_title", ""),
+            job_description=payload.get("job_description", ""),
+            candidates=payload.get("candidates", []),
+        ),
     )
 
 
 @app.post("/employer-ai/interview-pack")
 async def employer_ai_interview_pack(payload: dict):
-    return await generate_interview_pack(
-        job_title=payload.get("job_title", ""),
-        job_description=payload.get("job_description", ""),
-        candidate_name=payload.get("candidate_name"),
-        candidate_cv_text=payload.get("candidate_cv_text"),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="employer_ai",
+        action="interview_pack",
+        request_summary=payload.get("job_title", "EmployerAI interview pack"),
+        ai_callable=lambda: generate_interview_pack(
+            job_title=payload.get("job_title", ""),
+            job_description=payload.get("job_description", ""),
+            candidate_name=payload.get("candidate_name"),
+            candidate_cv_text=payload.get("candidate_cv_text"),
+        ),
     )
 
 
 @app.post("/employer-ai/improve-job-description")
 async def employer_ai_improve_job_description(payload: dict):
-    return await improve_job_description(
-        job_title=payload.get("job_title", ""),
-        draft_description=payload.get("draft_description", ""),
-        industry=payload.get("industry"),
-        experience_level=payload.get("experience_level"),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="employer_ai",
+        action="improve_job_description",
+        request_summary=payload.get("job_title", "EmployerAI job description improvement"),
+        ai_callable=lambda: improve_job_description(
+            job_title=payload.get("job_title", ""),
+            draft_description=payload.get("draft_description", ""),
+            industry=payload.get("industry"),
+            experience_level=payload.get("experience_level"),
+        ),
     )
-
 
 @app.post("/institution-ai/dashboard")
 async def institution_ai_dashboard(payload: dict):
-    return await generate_institution_dashboard(
-        institution_name=payload.get("institution_name", ""),
-        institution_type=payload.get("institution_type"),
-        location=payload.get("location"),
-        total_students=payload.get("total_students"),
-        total_graduates=payload.get("total_graduates"),
-        departments=payload.get("departments", []),
-        graduate_data=payload.get("graduate_data", []),
-        employer_data=payload.get("employer_data", []),
-        programme_data=payload.get("programme_data", []),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="institution_ai",
+        action="dashboard",
+        request_summary=payload.get("institution_name", "InstitutionAI dashboard"),
+        ai_callable=lambda: generate_institution_dashboard(
+            institution_name=payload.get("institution_name", ""),
+            institution_type=payload.get("institution_type"),
+            location=payload.get("location"),
+            total_students=payload.get("total_students"),
+            total_graduates=payload.get("total_graduates"),
+            departments=payload.get("departments", []),
+            graduate_data=payload.get("graduate_data", []),
+            employer_data=payload.get("employer_data", []),
+            programme_data=payload.get("programme_data", []),
+        ),
     )
 
 
 @app.post("/institution-ai/employability")
 async def institution_ai_employability(payload: dict):
-    return await analyze_employability(
-        institution_name=payload.get("institution_name", ""),
-        graduate_data=payload.get("graduate_data", []),
-        departments=payload.get("departments", []),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="institution_ai",
+        action="employability",
+        request_summary=payload.get("institution_name", "InstitutionAI employability"),
+        ai_callable=lambda: analyze_employability(
+            institution_name=payload.get("institution_name", ""),
+            graduate_data=payload.get("graduate_data", []),
+            departments=payload.get("departments", []),
+        ),
     )
 
 
 @app.post("/institution-ai/skills-gap")
 async def institution_ai_skills_gap(payload: dict):
-    return await analyze_skills_gap(
-        institution_name=payload.get("institution_name", ""),
-        graduate_skills=payload.get("graduate_skills", []),
-        employer_required_skills=payload.get("employer_required_skills", []),
-        programme_data=payload.get("programme_data", []),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="institution_ai",
+        action="skills_gap",
+        request_summary=payload.get("institution_name", "InstitutionAI skills gap"),
+        ai_callable=lambda: analyze_skills_gap(
+            institution_name=payload.get("institution_name", ""),
+            graduate_skills=payload.get("graduate_skills", []),
+            employer_required_skills=payload.get("employer_required_skills", []),
+            programme_data=payload.get("programme_data", []),
+        ),
     )
 
 
 @app.post("/institution-ai/curriculum")
 async def institution_ai_curriculum(payload: dict):
-    return await generate_curriculum_intelligence(
-        institution_name=payload.get("institution_name", ""),
-        departments=payload.get("departments", []),
-        programme_data=payload.get("programme_data", []),
-        employer_required_skills=payload.get("employer_required_skills", []),
-        labour_market_notes=payload.get("labour_market_notes"),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="institution_ai",
+        action="curriculum",
+        request_summary=payload.get("institution_name", "InstitutionAI curriculum"),
+        ai_callable=lambda: generate_curriculum_intelligence(
+            institution_name=payload.get("institution_name", ""),
+            departments=payload.get("departments", []),
+            programme_data=payload.get("programme_data", []),
+            employer_required_skills=payload.get("employer_required_skills", []),
+            labour_market_notes=payload.get("labour_market_notes"),
+        ),
     )
 
 
 @app.post("/institution-ai/recommendations")
 async def institution_ai_recommendations(payload: dict):
-    return await generate_institution_recommendations(
-        institution_name=payload.get("institution_name", ""),
-        dashboard_data=payload.get("dashboard_data", {}),
-        employability_data=payload.get("employability_data", {}),
-        skills_gap_data=payload.get("skills_gap_data", {}),
-        curriculum_data=payload.get("curriculum_data", {}),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="institution_ai",
+        action="recommendations",
+        request_summary=payload.get("institution_name", "InstitutionAI recommendations"),
+        ai_callable=lambda: generate_institution_recommendations(
+            institution_name=payload.get("institution_name", ""),
+            dashboard_data=payload.get("dashboard_data", {}),
+            employability_data=payload.get("employability_data", {}),
+            skills_gap_data=payload.get("skills_gap_data", {}),
+            curriculum_data=payload.get("curriculum_data", {}),
+        ),
     )
 
 
 @app.post("/admin-ai/dashboard")
 async def admin_ai_dashboard(payload: dict):
-    return await generate_admin_dashboard_intelligence(
-        platform_name=payload.get("platform_name", "TalentIQ"),
-        student_metrics=payload.get("student_metrics", {}),
-        employer_metrics=payload.get("employer_metrics", {}),
-        institution_metrics=payload.get("institution_metrics", {}),
-        ai_usage_metrics=payload.get("ai_usage_metrics", {}),
-        revenue_metrics=payload.get("revenue_metrics", {}),
-        operational_metrics=payload.get("operational_metrics", {}),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="admin_ai",
+        action="dashboard",
+        request_summary=payload.get("platform_name", "AdminAI dashboard"),
+        ai_callable=lambda: generate_admin_dashboard_intelligence(
+            platform_name=payload.get("platform_name", "TalentIQ"),
+            student_metrics=payload.get("student_metrics", {}),
+            employer_metrics=payload.get("employer_metrics", {}),
+            institution_metrics=payload.get("institution_metrics", {}),
+            ai_usage_metrics=payload.get("ai_usage_metrics", {}),
+            revenue_metrics=payload.get("revenue_metrics", {}),
+            operational_metrics=payload.get("operational_metrics", {}),
+        ),
     )
 
 
 @app.post("/admin-ai/growth")
 async def admin_ai_growth(payload: dict):
-    return await analyze_platform_growth(
-        platform_name=payload.get("platform_name", "TalentIQ"),
-        user_growth_data=payload.get("user_growth_data", {}),
-        traffic_data=payload.get("traffic_data", {}),
-        conversion_data=payload.get("conversion_data", {}),
-        engagement_data=payload.get("engagement_data", {}),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="admin_ai",
+        action="growth",
+        request_summary=payload.get("platform_name", "AdminAI growth"),
+        ai_callable=lambda: analyze_platform_growth(
+            platform_name=payload.get("platform_name", "TalentIQ"),
+            user_growth_data=payload.get("user_growth_data", {}),
+            traffic_data=payload.get("traffic_data", {}),
+            conversion_data=payload.get("conversion_data", {}),
+            engagement_data=payload.get("engagement_data", {}),
+        ),
     )
 
 
 @app.post("/admin-ai/revenue")
 async def admin_ai_revenue(payload: dict):
-    return await analyze_revenue_opportunities(
-        platform_name=payload.get("platform_name", "TalentIQ"),
-        subscription_data=payload.get("subscription_data", {}),
-        payment_data=payload.get("payment_data", {}),
-        employer_data=payload.get("employer_data", {}),
-        institution_data=payload.get("institution_data", {}),
-        pricing_notes=payload.get("pricing_notes"),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="admin_ai",
+        action="revenue",
+        request_summary=payload.get("platform_name", "AdminAI revenue"),
+        ai_callable=lambda: analyze_revenue_opportunities(
+            platform_name=payload.get("platform_name", "TalentIQ"),
+            subscription_data=payload.get("subscription_data", {}),
+            payment_data=payload.get("payment_data", {}),
+            employer_data=payload.get("employer_data", {}),
+            institution_data=payload.get("institution_data", {}),
+            pricing_notes=payload.get("pricing_notes"),
+        ),
     )
 
 
 @app.post("/admin-ai/risks")
 async def admin_ai_risks(payload: dict):
-    return await analyze_admin_risks(
-        platform_name=payload.get("platform_name", "TalentIQ"),
-        technical_metrics=payload.get("technical_metrics", {}),
-        user_activity_data=payload.get("user_activity_data", {}),
-        payment_activity_data=payload.get("payment_activity_data", {}),
-        moderation_notes=payload.get("moderation_notes"),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="admin_ai",
+        action="risks",
+        request_summary=payload.get("platform_name", "AdminAI risks"),
+        ai_callable=lambda: analyze_admin_risks(
+            platform_name=payload.get("platform_name", "TalentIQ"),
+            technical_metrics=payload.get("technical_metrics", {}),
+            user_activity_data=payload.get("user_activity_data", {}),
+            payment_activity_data=payload.get("payment_activity_data", {}),
+            moderation_notes=payload.get("moderation_notes"),
+        ),
     )
 
 
 @app.post("/admin-ai/recommendations")
 async def admin_ai_recommendations(payload: dict):
-    return await generate_admin_recommendations(
-        platform_name=payload.get("platform_name", "TalentIQ"),
-        dashboard_intelligence=payload.get("dashboard_intelligence", {}),
-        growth_intelligence=payload.get("growth_intelligence", {}),
-        revenue_intelligence=payload.get("revenue_intelligence", {}),
-        risk_intelligence=payload.get("risk_intelligence", {}),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="admin_ai",
+        action="recommendations",
+        request_summary=payload.get("platform_name", "AdminAI recommendations"),
+        ai_callable=lambda: generate_admin_recommendations(
+            platform_name=payload.get("platform_name", "TalentIQ"),
+            dashboard_intelligence=payload.get("dashboard_intelligence", {}),
+            growth_intelligence=payload.get("growth_intelligence", {}),
+            revenue_intelligence=payload.get("revenue_intelligence", {}),
+            risk_intelligence=payload.get("risk_intelligence", {}),
+        ),
     )
-
 
 @app.post("/copilot/chat")
 async def talentiq_copilot_chat(payload: dict):
-    return await run_talentiq_copilot(
-        question=payload.get("question", ""),
-        user_role=payload.get("user_role"),
-        context=payload.get("context", {}),
+    return await run_ai_with_credit_guard(
+        payload=payload,
+        tool_name="copilot",
+        action="chat",
+        request_summary=payload.get("question", "TalentIQ Copilot chat"),
+        ai_callable=lambda: run_talentiq_copilot(
+            question=payload.get("question", ""),
+            user_role=payload.get("user_role"),
+            context=payload.get("context", {}),
+        ),
     )
+
+async def run_ai_with_credit_guard(
+    payload: dict,
+    tool_name: str,
+    action: str,
+    request_summary: str,
+    ai_callable,
+):
+    user_id = payload.get("user_id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="user_id is required for AI credit validation.",
+        )
+
+    credit_check = check_ai_credits(user_id, tool_name)
+
+    if not credit_check.get("allowed"):
+        raise HTTPException(
+            status_code=402,
+            detail=credit_check.get("message", "Insufficient AI credits."),
+        )
+
+    try:
+        result = await ai_callable()
+
+        credit_result = deduct_ai_credits(
+            user_id=user_id,
+            tool_name=tool_name,
+            action=action,
+            request_summary=request_summary[:250],
+            metadata={
+                "action": action,
+                "tool_name": tool_name,
+            },
+        )
+
+        return {
+            "result": result,
+            "credit": credit_result,
+        }
+
+    except CreditError as error:
+        log_ai_failure(
+            user_id=user_id,
+            tool_name=tool_name,
+            action=action,
+            request_summary=request_summary[:250],
+            error_message=str(error),
+        )
+        raise HTTPException(status_code=402, detail=str(error))
+
+    except Exception as error:
+        log_ai_failure(
+            user_id=user_id,
+            tool_name=tool_name,
+            action=action,
+            request_summary=request_summary[:250],
+            error_message=str(error),
+        )
+        raise

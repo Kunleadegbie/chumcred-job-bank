@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data?.result ? data.result : data);
   } catch (error: any) {
     console.error("AdminAI API error:", error);
 
