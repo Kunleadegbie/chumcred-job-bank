@@ -18,12 +18,29 @@ export default function AdminOperationsPage() {
   const [wallets, setWallets] = useState<any[]>([]);
   const [enterprises, setEnterprises] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [adminAllowed, setAdminAllowed] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
 
   const [operationalNotes, setOperationalNotes] = useState("");
 
   useEffect(() => {
+    async function initPage() {
+      const { isAdmin } = await requireAdminUser();
+
+      if (!isAdmin) {
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      setAdminAllowed(true);
+      setAuthChecking(false);
+
+      await loadPayments();
+    }
+
     initPage();
   }, []);
+
 
   async function initPage() {
     setLoading(true);

@@ -51,6 +51,9 @@ export default function AdminSubscriptionsPage() {
         return;
       }
 
+      setAdminAllowed(true);
+      setAuthChecking(false);
+
       await loadPayments();
     }
 

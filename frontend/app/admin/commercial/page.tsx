@@ -65,7 +65,10 @@ export default function AdminCommercialPage() {
         return;
       }
 
-      await loadCommercialDashboard();
+      setAdminAllowed(true);
+      setAuthChecking(false);
+
+      await loadPayments();
     }
 
     initPage();
