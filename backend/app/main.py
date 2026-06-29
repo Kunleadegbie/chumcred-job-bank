@@ -1686,6 +1686,7 @@ async def run_ai_with_credit_guard(
         return {
             "result": result,
             "credit": credit_result,
+            "rate_limit": rate_limit,
         }
 
     except CreditError as error:
