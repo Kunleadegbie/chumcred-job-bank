@@ -98,6 +98,7 @@ export default function TopNav() {
           </Dropdown>
           <Link href="/employer">Employers</Link>
           <Link href="/enterprise">Enterprise</Link>
+          <Link href="/pricing">Pricing</Link>
 
           {loggedIn ? (
             <>
@@ -105,9 +106,9 @@ export default function TopNav() {
                 <DropdownLink href="/dashboard">Dashboard</DropdownLink>
                 <DropdownLink href="/profile">Profile</DropdownLink>
                 <DropdownLink href="/saved-jobs">Saved Jobs</DropdownLink>
-                <DropdownLink href="/my-applications">
-                  My Applications
-                </DropdownLink>
+                <DropdownLink href="/subscription">Subscription</DropdownLink>
+                <DropdownLink href="/wallet">AI Wallet</DropdownLink>
+                <DropdownLink href="/my-applications">My Applications</DropdownLink>
               </Dropdown>
 
               <Dropdown title="AI Tools">
@@ -152,6 +153,8 @@ export default function TopNav() {
                   <DropdownLink href="/admin">Admin Dashboard</DropdownLink>
                   <DropdownLink href="/admin-intelligence">Admin Intelligence</DropdownLink>
                   <DropdownLink href="/enterprise/my-accounts">Enterprise Accounts</DropdownLink>
+                  <DropdownLink href="/admin/subscriptions">Subscription Approvals</DropdownLink>
+                  <DropdownLink href="/admin/commercial">Commercial Dashboard</DropdownLink>
                   <DropdownLink href="/admin/jobs">Manage Jobs</DropdownLink>
                   <DropdownLink href="/admin/sources">Job Sources</DropdownLink>
                   <DropdownLink href="/admin/clicks">
