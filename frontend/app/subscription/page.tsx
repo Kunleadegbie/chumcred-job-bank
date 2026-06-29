@@ -178,7 +178,7 @@ function SubscriptionContent() {
       return;
     }
 
-    receipt_url: finalReceiptUrl,
+    let finalReceiptUrl = form.receipt_url;
 
     try {
       finalReceiptUrl = await uploadReceiptIfAvailable();
@@ -199,7 +199,7 @@ function SubscriptionContent() {
         currency: selectedPlan.currency,
         payment_method: "bank_transfer",
         payment_reference: form.payment_reference,
-        receipt_url: form.receipt_url,
+        receipt_url: finalReceiptUrl,    
         narration: form.narration,
         status: "pending",
       });
